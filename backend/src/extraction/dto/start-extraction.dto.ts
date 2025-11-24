@@ -1,8 +1,20 @@
-import { IsString, IsNotEmpty, IsBoolean, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  MaxLength,
+} from 'class-validator';
+import { Sanitize } from '../../common/decorators/sanitize.decorator';
 
 export class StartExtractionDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200, { message: 'Keyword must not exceed 200 characters' })
+  @Sanitize()
   keyword: string;
 
   @IsBoolean()

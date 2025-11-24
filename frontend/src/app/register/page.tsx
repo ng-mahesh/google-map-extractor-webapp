@@ -23,8 +23,10 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (password.length < 8) {
+      toast.error(
+        "Password must be at least 8 characters with uppercase, lowercase, number, and special character"
+      );
       return;
     }
 
@@ -32,9 +34,9 @@ export default function RegisterPage() {
 
     try {
       const response = await authAPI.register({ email, password, name });
-      const { access_token, user } = response.data;
+      const { accessToken, refreshToken, user } = response.data;
 
-      setAuthToken(access_token);
+      setAuthToken(accessToken, refreshToken);
       setUser(user);
 
       toast.success("Registration successful!");

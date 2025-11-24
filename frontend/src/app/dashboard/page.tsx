@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isAuthenticated, getUser, removeAuthToken } from "@/lib/auth";
-import { extractionAPI, Extraction } from "@/lib/api";
+import { isAuthenticated, getUser, removeAuthToken, getRefreshToken } from "@/lib/auth";
+import { extractionAPI, Extraction, authAPI } from "@/lib/api";
 import toast from "react-hot-toast";
 import ExtractionForm from "@/components/ExtractionForm";
 import ExtractionHistory from "@/components/ExtractionHistory";
@@ -43,10 +43,19 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    removeAuthToken();
-    toast.success("Logged out successfully");
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await authAPI.logout(refreshToken);
+      }
+    } catch {
+      // Ignore logout errors, still clear local storage
+    } finally {
+      removeAuthToken();
+      toast.success("Logged out successfully");
+      router.push("/login");
+    }
   };
 
   const handleExtractionComplete = () => {

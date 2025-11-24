@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { ScraperModule } from './scraper/scraper.module';
+import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 
 @Module({
   imports: [
@@ -29,8 +31,8 @@ import { ScraperModule } from './scraper/scraper.module';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => [
         {
-          ttl: parseInt(configService.get<string>('RATE_LIMIT_WINDOW_MS') || '86400000'),
-          limit: parseInt(configService.get<string>('RATE_LIMIT_MAX_REQUESTS') || '100'),
+          ttl: parseInt(configService.get<string>('THROTTLE_TTL') || '60000'), // 1 minute default
+          limit: parseInt(configService.get<string>('THROTTLE_LIMIT') || '10'), // 10 requests default
         },
       ],
       inject: [ConfigService],
@@ -41,6 +43,12 @@ import { ScraperModule } from './scraper/scraper.module';
     UsersModule,
     ExtractionModule,
     ScraperModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
   ],
 })
 export class AppModule {}

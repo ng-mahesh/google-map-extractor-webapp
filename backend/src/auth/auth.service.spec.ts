@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { getModelToken } from '@nestjs/mongoose';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshToken } from './schemas/refresh-token.schema';
 
 // Mock bcrypt module
 jest.mock('bcrypt');
@@ -14,6 +16,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let usersService: jest.Mocked<UsersService>;
   let jwtService: jest.Mocked<JwtService>;
+  let refreshTokenModel: any;
 
   const mockUser = {
     _id: 'user-id-123',
@@ -33,6 +36,12 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
+    refreshTokenModel = {
+      create: jest.fn().mockResolvedValue({}),
+      findOne: jest.fn(),
+      updateOne: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -40,6 +49,7 @@ describe('AuthService', () => {
           provide: UsersService,
           useValue: {
             findByEmail: jest.fn(),
+            findById: jest.fn(),
             create: jest.fn(),
           },
         },
@@ -48,6 +58,10 @@ describe('AuthService', () => {
           useValue: {
             sign: jest.fn(),
           },
+        },
+        {
+          provide: getModelToken(RefreshToken.name),
+          useValue: refreshTokenModel,
         },
       ],
     }).compile();
@@ -71,7 +85,7 @@ describe('AuthService', () => {
     it('should successfully register a new user', async () => {
       usersService.findByEmail.mockResolvedValue(null);
       usersService.create.mockResolvedValue(mockUser as any);
-      jwtService.sign.mockReturnValue('jwt-token');
+      jwtService.sign.mockReturnValue('jwt-access-token');
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
       const result = await service.register(registerDto);
@@ -82,17 +96,14 @@ describe('AuthService', () => {
         ...registerDto,
         password: 'hashed-password',
       });
-      expect(jwtService.sign).toHaveBeenCalledWith({
+      expect(refreshTokenModel.create).toHaveBeenCalled();
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result).toHaveProperty('expiresIn', 900);
+      expect(result.user).toEqual({
+        id: mockUser._id,
         email: mockUser.email,
-        sub: mockUser._id,
-      });
-      expect(result).toEqual({
-        access_token: 'jwt-token',
-        user: {
-          id: mockUser._id,
-          email: mockUser.email,
-          name: mockUser.name,
-        },
+        name: mockUser.name,
       });
     });
 
@@ -129,26 +140,23 @@ describe('AuthService', () => {
 
     it('should successfully login with valid credentials', async () => {
       usersService.findByEmail.mockResolvedValue(mockUser as any);
-      jwtService.sign.mockReturnValue('jwt-token');
+      jwtService.sign.mockReturnValue('jwt-access-token');
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.login(loginDto);
 
       expect(usersService.findByEmail).toHaveBeenCalledWith(loginDto.email);
       expect(bcrypt.compare).toHaveBeenCalledWith(loginDto.password, mockUser.password);
-      expect(jwtService.sign).toHaveBeenCalledWith({
+      expect(refreshTokenModel.create).toHaveBeenCalled();
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result).toHaveProperty('expiresIn', 900);
+      expect(result.user).toEqual({
+        id: mockUser._id,
         email: mockUser.email,
-        sub: mockUser._id,
-      });
-      expect(result).toEqual({
-        access_token: 'jwt-token',
-        user: {
-          id: mockUser._id,
-          email: mockUser.email,
-          name: mockUser.name,
-          dailyQuota: mockUser.dailyQuota,
-          usedQuotaToday: mockUser.usedQuotaToday,
-        },
+        name: mockUser.name,
+        dailyQuota: mockUser.dailyQuota,
+        usedQuotaToday: mockUser.usedQuotaToday,
       });
     });
 
