@@ -203,10 +203,8 @@ export class ExtractionService {
       { label: 'Name', value: 'name' },
       { label: 'Address', value: 'address' },
       { label: 'Phone', value: 'phone' },
-      { label: 'Email', value: 'email' },
       { label: 'Website', value: 'website' },
       { label: 'Rating', value: 'rating' },
-      { label: 'Reviews Count', value: 'reviewsCount' },
     ];
 
     const json2csvParser = new Parser({ fields });

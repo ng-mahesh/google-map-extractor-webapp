@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authAPI } from "@/lib/api";
 import { setAuthToken, setUser } from "@/lib/auth";
 import toast from "react-hot-toast";
+import { MapPin } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -127,19 +128,31 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Google Maps Extractor</h1>
-          <p className="text-gray-600">Create your account to get started</p>
+        {/* Google-style Logo */}
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center space-x-2 mb-3">
+            <MapPin className="w-8 h-8 text-google-blue" />
+            <h1 className="text-3xl font-normal text-gray-800">
+              <span className="text-google-blue">G</span>
+              <span className="text-google-red">o</span>
+              <span className="text-google-yellow">o</span>
+              <span className="text-google-blue">g</span>
+              <span className="text-google-green">l</span>
+              <span className="text-google-red">e</span>
+              <span className="text-gray-700 ml-1">Maps</span>
+            </h1>
+          </div>
+          <h2 className="text-2xl font-normal text-gray-700 mb-2">Create your account</h2>
+          <p className="text-sm text-gray-600">to continue to Maps Extractor</p>
         </div>
 
-        <div className="card">
-          <h2 className="text-2xl font-semibold mb-6 text-center">Register</h2>
-
+        {/* Register Card */}
+        <div className="bg-white border border-gray-300 rounded-lg shadow-google p-10">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name
               </label>
               <input
@@ -150,14 +163,16 @@ export default function RegisterPage() {
                   setName(e.target.value);
                   setErrors((prev) => ({ ...prev, name: undefined }));
                 }}
-                className={`input-field ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`}
+                className={`w-full px-4 py-3 border ${
+                  errors.name ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-google-blue focus:border-transparent transition-all`}
                 placeholder="John Doe"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+              {errors.name && <p className="text-red-500 text-xs mt-2">{errors.name}</p>}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email
               </label>
               <input
@@ -168,14 +183,16 @@ export default function RegisterPage() {
                   setEmail(e.target.value);
                   setErrors((prev) => ({ ...prev, email: undefined }));
                 }}
-                className={`input-field ${errors.email ? "border-red-500 focus:ring-red-500" : ""}`}
+                className={`w-full px-4 py-3 border ${
+                  errors.email ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-google-blue focus:border-transparent transition-all`}
                 placeholder="your@email.com"
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              {errors.email && <p className="text-red-500 text-xs mt-2">{errors.email}</p>}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Password
               </label>
               <input
@@ -186,19 +203,18 @@ export default function RegisterPage() {
                   setPassword(e.target.value);
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }}
-                className={`input-field ${errors.password ? "border-red-500 focus:ring-red-500" : ""}`}
-                placeholder="••••••••"
+                className={`w-full px-4 py-3 border ${
+                  errors.password ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-google-blue focus:border-transparent transition-all`}
+                placeholder="Create a strong password"
               />
-              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-              <p className="text-xs text-gray-500 mt-1">
-                Must be 8+ characters with uppercase, lowercase, number, and special character
-              </p>
+              {errors.password && <p className="text-red-500 text-xs mt-2">{errors.password}</p>}
             </div>
 
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-gray-700 mb-2"
               >
                 Confirm Password
               </label>
@@ -210,27 +226,40 @@ export default function RegisterPage() {
                   setConfirmPassword(e.target.value);
                   setErrors((prev) => ({ ...prev, confirmPassword: undefined }));
                 }}
-                className={`input-field ${errors.confirmPassword ? "border-red-500 focus:ring-red-500" : ""}`}
-                placeholder="••••••••"
+                className={`w-full px-4 py-3 border ${
+                  errors.confirmPassword ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-google-blue focus:border-transparent transition-all`}
+                placeholder="Confirm your password"
               />
               {errors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+                <p className="text-red-500 text-xs mt-2">{errors.confirmPassword}</p>
               )}
             </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? "Creating account..." : "Register"}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-google-blue hover:bg-primary-700 text-white font-medium py-3 px-6 rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              >
+                {loading ? "Creating account..." : "Create account"}
+              </button>
+            </div>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{" "}
-              <Link href="/login" className="text-primary-600 hover:text-primary-700 font-semibold">
-                Login here
+              <Link href="/login" className="text-google-blue hover:text-primary-700 font-medium">
+                Sign in
               </Link>
             </p>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 text-center text-xs text-gray-500">
+          <p>Secure business data extraction tool</p>
         </div>
       </div>
     </div>

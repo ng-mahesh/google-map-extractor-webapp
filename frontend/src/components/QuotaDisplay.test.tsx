@@ -12,13 +12,14 @@ describe("QuotaDisplay", () => {
   it("should render quota information correctly", () => {
     render(<QuotaDisplay quota={mockQuota} />);
 
-    expect(screen.getByText("70 / 100 remaining")).toBeInTheDocument();
+    expect(screen.getByText("70")).toBeInTheDocument();
+    expect(screen.getByText("/ 100 today")).toBeInTheDocument();
   });
 
   it("should display correct percentage in progress bar", () => {
     const { container } = render(<QuotaDisplay quota={mockQuota} />);
 
-    const progressBar = container.querySelector(".bg-primary-600");
+    const progressBar = container.querySelector(".bg-google-blue");
     expect(progressBar).toHaveStyle({ width: "30%" });
   });
 
@@ -31,7 +32,8 @@ describe("QuotaDisplay", () => {
 
     render(<QuotaDisplay quota={lowQuota} />);
 
-    expect(screen.getByText("5 / 100 remaining")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("/ 100 today")).toBeInTheDocument();
   });
 
   it("should show full quota when no usage", () => {
@@ -43,9 +45,10 @@ describe("QuotaDisplay", () => {
 
     const { container } = render(<QuotaDisplay quota={fullQuota} />);
 
-    const progressBar = container.querySelector(".bg-primary-600");
+    const progressBar = container.querySelector(".bg-google-blue");
     expect(progressBar).toHaveStyle({ width: "0%" });
-    expect(screen.getByText("100 / 100 remaining")).toBeInTheDocument();
+    expect(screen.getByText("100")).toBeInTheDocument();
+    expect(screen.getByText("/ 100 today")).toBeInTheDocument();
   });
 
   it("should show no quota remaining when quota exhausted", () => {
@@ -57,8 +60,9 @@ describe("QuotaDisplay", () => {
 
     const { container } = render(<QuotaDisplay quota={exhaustedQuota} />);
 
-    const progressBar = container.querySelector(".bg-primary-600");
+    const progressBar = container.querySelector(".bg-google-red");
     expect(progressBar).toHaveStyle({ width: "100%" });
-    expect(screen.getByText("0 / 100 remaining")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("/ 100 today")).toBeInTheDocument();
   });
 });

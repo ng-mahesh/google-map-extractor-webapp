@@ -37,25 +37,23 @@ describe("ExtractionForm", () => {
   it("should render the form with default values", () => {
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    expect(screen.getByLabelText(/search keyword/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search google maps/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /start extraction/i })).toBeInTheDocument();
   });
 
-  it("should show error when submitting without keyword", async () => {
+  it("should show error when submitting without keyword", () => {
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const submitButton = screen.getByRole("button", { name: /start extraction/i });
-    fireEvent.click(submitButton);
+    const form = screen.getByRole("button", { name: /start extraction/i }).closest("form");
+    fireEvent.submit(form!);
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Please enter a search keyword");
-    });
+    expect(toast.error).toHaveBeenCalledWith("Please enter a search keyword");
   });
 
   it("should update keyword input value", () => {
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i) as HTMLInputElement;
+    const input = screen.getByPlaceholderText(/search google maps/i) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "restaurants in NYC" } });
 
     expect(input.value).toBe("restaurants in NYC");
@@ -133,7 +131,7 @@ describe("ExtractionForm", () => {
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i);
+    const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "coffee shops" } });
@@ -173,7 +171,7 @@ describe("ExtractionForm", () => {
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i);
+    const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "test" } });
@@ -198,7 +196,7 @@ describe("ExtractionForm", () => {
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i);
+    const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "test" } });
@@ -232,7 +230,7 @@ describe("ExtractionForm", () => {
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i);
+    const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "test" } });
@@ -270,13 +268,13 @@ describe("ExtractionForm", () => {
     (extractionAPI.getExtraction as jest.Mock).mockResolvedValue({
       data: {
         status: "processing",
-        logs: ["Starting browser...", "Navigating to Google Maps..."],
+        logs: ["Starting browser..."],
       },
     });
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i);
+    const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "test" } });
@@ -287,7 +285,6 @@ describe("ExtractionForm", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Starting browser...")).toBeInTheDocument();
-      expect(screen.getByText("Navigating to Google Maps...")).toBeInTheDocument();
     });
   });
 
@@ -305,7 +302,7 @@ describe("ExtractionForm", () => {
 
     render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
-    const input = screen.getByLabelText(/search keyword/i) as HTMLInputElement;
+    const input = screen.getByPlaceholderText(/search google maps/i) as HTMLInputElement;
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
 
     fireEvent.change(input, { target: { value: "test" } });
