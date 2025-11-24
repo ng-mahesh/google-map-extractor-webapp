@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { extractionAPI, Extraction } from '@/lib/api';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
-import { Clock, CheckCircle, XCircle, Loader, Eye } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { extractionAPI, Extraction } from "@/lib/api";
+import toast from "react-hot-toast";
+import { format } from "date-fns";
+import { Clock, CheckCircle, XCircle, Loader, Eye } from "lucide-react";
 
 interface ExtractionHistoryProps {
   onViewResults: (extraction: Extraction) => void;
@@ -22,8 +22,8 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
     try {
       const response = await extractionAPI.getHistory(20);
       setExtractions(response.data);
-    } catch (error) {
-      toast.error('Failed to load extraction history');
+    } catch {
+      toast.error("Failed to load extraction history");
     } finally {
       setLoading(false);
     }
@@ -33,18 +33,18 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
     try {
       const response = await extractionAPI.getExtraction(extractionId);
       onViewResults(response.data);
-    } catch (error) {
-      toast.error('Failed to load extraction details');
+    } catch {
+      toast.error("Failed to load extraction details");
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
+      case "completed":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'failed':
+      case "failed":
         return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'processing':
+      case "processing":
         return <Loader className="w-5 h-5 text-blue-500 animate-spin" />;
       default:
         return <Clock className="w-5 h-5 text-gray-400" />;
@@ -52,13 +52,13 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
   };
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = 'px-3 py-1 rounded-full text-xs font-semibold';
+    const baseClasses = "px-3 py-1 rounded-full text-xs font-semibold";
     switch (status) {
-      case 'completed':
+      case "completed":
         return <span className={`${baseClasses} bg-green-100 text-green-800`}>Completed</span>;
-      case 'failed':
+      case "failed":
         return <span className={`${baseClasses} bg-red-100 text-red-800`}>Failed</span>;
-      case 'processing':
+      case "processing":
         return <span className={`${baseClasses} bg-blue-100 text-blue-800`}>Processing</span>;
       default:
         return <span className={`${baseClasses} bg-gray-100 text-gray-800`}>Pending</span>;
@@ -104,43 +104,45 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
 
                 <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
                   <div>
-                    <span className="text-gray-600">Created:</span>{' '}
+                    <span className="text-gray-600">Created:</span>{" "}
                     <span className="font-medium">
-                      {format(new Date(extraction.createdAt), 'MMM dd, yyyy HH:mm')}
+                      {format(new Date(extraction.createdAt), "MMM dd, yyyy HH:mm")}
                     </span>
                   </div>
 
-                  {extraction.status === 'completed' && (
+                  {extraction.status === "completed" && (
                     <>
                       <div>
-                        <span className="text-gray-600">Results:</span>{' '}
-                        <span className="font-medium text-green-600">{extraction.totalResults}</span>
+                        <span className="text-gray-600">Results:</span>{" "}
+                        <span className="font-medium text-green-600">
+                          {extraction.totalResults}
+                        </span>
                       </div>
                       {extraction.duplicatesSkipped > 0 && (
                         <div>
-                          <span className="text-gray-600">Duplicates skipped:</span>{' '}
+                          <span className="text-gray-600">Duplicates skipped:</span>{" "}
                           <span className="font-medium">{extraction.duplicatesSkipped}</span>
                         </div>
                       )}
                       {extraction.withoutPhoneSkipped > 0 && (
                         <div>
-                          <span className="text-gray-600">Without phone skipped:</span>{' '}
+                          <span className="text-gray-600">Without phone skipped:</span>{" "}
                           <span className="font-medium">{extraction.withoutPhoneSkipped}</span>
                         </div>
                       )}
                     </>
                   )}
 
-                  {extraction.status === 'failed' && extraction.errorMessage && (
+                  {extraction.status === "failed" && extraction.errorMessage && (
                     <div className="col-span-2">
-                      <span className="text-red-600">Error:</span>{' '}
+                      <span className="text-red-600">Error:</span>{" "}
                       <span className="text-sm">{extraction.errorMessage}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {extraction.status === 'completed' && (
+              {extraction.status === "completed" && (
                 <button
                   onClick={() => handleViewResults(extraction._id)}
                   className="ml-4 flex items-center space-x-2 btn-primary"

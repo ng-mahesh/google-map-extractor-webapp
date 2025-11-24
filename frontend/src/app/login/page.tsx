@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { authAPI } from '@/lib/api';
-import { setAuthToken, setUser } from '@/lib/auth';
-import toast from 'react-hot-toast';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { authAPI } from "@/lib/api";
+import { setAuthToken, setUser } from "@/lib/auth";
+import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
@@ -24,11 +24,33 @@ export default function LoginPage() {
       setAuthToken(access_token);
       setUser(user);
 
-      toast.success('Login successful!');
-      router.push('/dashboard');
-    } catch (error: any) {
-      const message = error.response?.data?.message || 'Login failed. Please check your credentials.';
-      toast.error(message);
+      toast.success("Login successful!");
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      let errorMessage = "Login failed. Please check your credentials.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      // Attempt to extract message from Axios error response if available
+      interface AxiosError {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      }
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        (err as AxiosError).response?.data?.message
+      ) {
+        const axiosError = err as AxiosError;
+        if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        }
+      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -38,12 +60,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Google Maps Extractor
-          </h1>
-          <p className="text-gray-600">
-            Extract business data from Google Maps
-          </p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Google Maps Extractor</h1>
+          <p className="text-gray-600">Extract business data from Google Maps</p>
         </div>
 
         <div className="card">
@@ -80,19 +98,18 @@ export default function LoginPage() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full"
-            >
-              {loading ? 'Logging in...' : 'Login'}
+            <button type="submit" disabled={loading} className="btn-primary w-full">
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link href="/register" className="text-primary-600 hover:text-primary-700 font-semibold">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/register"
+                className="text-primary-600 hover:text-primary-700 font-semibold"
+              >
                 Register here
               </Link>
             </p>

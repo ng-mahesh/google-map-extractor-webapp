@@ -119,10 +119,12 @@ export class ExtractionService {
   }
 
   async getExtraction(extractionId: string, userId: string): Promise<ExtractionDocument> {
-    const extraction = await this.extractionModel.findOne({
-      _id: extractionId,
-      userId,
-    }).exec();
+    const extraction = await this.extractionModel
+      .findOne({
+        _id: extractionId,
+        userId,
+      })
+      .exec();
 
     if (!extraction) {
       throw new BadRequestException('Extraction not found');

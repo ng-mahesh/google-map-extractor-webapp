@@ -1,7 +1,17 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { MapPin, Download, Filter, Zap, CheckCircle, Users, Clock, Shield, ArrowRight, Search } from 'lucide-react';
+import { useRouter } from "next/navigation";
+import {
+  MapPin,
+  Download,
+  Filter,
+  Zap,
+  CheckCircle,
+  Clock,
+  Shield,
+  ArrowRight,
+  Search,
+} from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -18,15 +28,12 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => router.push('/login')}
+                onClick={() => router.push("/login")}
                 className="text-gray-700 hover:text-gray-900 font-medium"
               >
                 Login
               </button>
-              <button
-                onClick={() => router.push('/register')}
-                className="btn-primary"
-              >
+              <button onClick={() => router.push("/register")} className="btn-primary">
                 Get Started
               </button>
             </div>
@@ -43,25 +50,27 @@ export default function LandingPage() {
               <span className="text-primary-600"> Google Maps</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Effortlessly collect business information including contacts, ratings, reviews, and websites.
-              Perfect for lead generation, market research, and competitive analysis.
+              Effortlessly collect business information including contacts, ratings, reviews, and
+              websites. Perfect for lead generation, market research, and competitive analysis.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={() => router.push('/register')}
+                onClick={() => router.push("/register")}
                 className="btn-primary text-lg px-8 py-3 flex items-center justify-center space-x-2"
               >
                 <span>Start Extracting Free</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
               <button
-                onClick={() => router.push('/login')}
+                onClick={() => router.push("/login")}
                 className="btn-secondary text-lg px-8 py-3"
               >
                 View Demo
               </button>
             </div>
-            <p className="text-sm text-gray-500 mt-4">No credit card required • 10 extractions per month</p>
+            <p className="text-sm text-gray-500 mt-4">
+              No credit card required • 10 extractions per month
+            </p>
           </div>
         </div>
       </section>
@@ -71,7 +80,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Powerful Features</h2>
-            <p className="text-xl text-gray-600">Everything you need to extract and manage business data</p>
+            <p className="text-xl text-gray-600">
+              Everything you need to extract and manage business data
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -82,7 +93,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Smart Extraction</h3>
               <p className="text-gray-600">
-                Extract business names, addresses, phone numbers, emails, websites, ratings, and reviews automatically.
+                Extract business names, addresses, phone numbers, emails, websites, ratings, and
+                reviews automatically.
               </p>
             </div>
 
@@ -93,7 +105,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Advanced Filtering</h3>
               <p className="text-gray-600">
-                Filter by contact availability, website presence, and sort by ratings. Skip duplicates automatically.
+                Filter by contact availability, website presence, and sort by ratings. Skip
+                duplicates automatically.
               </p>
             </div>
 
@@ -104,7 +117,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">CSV Export</h3>
               <p className="text-gray-600">
-                Export your data to CSV format with one click. Ready to import into CRM, email marketing tools, or Excel.
+                Export your data to CSV format with one click. Ready to import into CRM, email
+                marketing tools, or Excel.
               </p>
             </div>
 
@@ -126,7 +140,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Extraction History</h3>
               <p className="text-gray-600">
-                Access all your previous extractions anytime. View, filter, and re-export your historical data.
+                Access all your previous extractions anytime. View, filter, and re-export your
+                historical data.
               </p>
             </div>
 
@@ -137,7 +152,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Secure & Private</h3>
               <p className="text-gray-600">
-                Your data is encrypted and stored securely. We never share your extracted data with third parties.
+                Your data is encrypted and stored securely. We never share your extracted data with
+                third parties.
               </p>
             </div>
           </div>
@@ -160,7 +176,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Enter Search Keyword</h3>
               <p className="text-gray-600">
-                Type in what you're looking for, like "restaurants in New York" or "plumbers in London"
+                Type in what you&apos;re looking for, like &quot;restaurants in New York&quot; or
+                &quot;plumbers in London&quot;
               </p>
             </div>
 
@@ -171,7 +188,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Configure & Extract</h3>
               <p className="text-gray-600">
-                Set your preferences (max results, filters) and start the extraction. Watch progress in real-time.
+                Set your preferences (max results, filters) and start the extraction. Watch progress
+                in real-time.
               </p>
             </div>
 
@@ -182,7 +200,8 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Export & Use</h3>
               <p className="text-gray-600">
-                Filter, sort, and export your data to CSV. Use it for lead generation, analysis, or outreach.
+                Filter, sort, and export your data to CSV. Use it for lead generation, analysis, or
+                outreach.
               </p>
             </div>
           </div>
@@ -202,9 +221,12 @@ export default function LandingPage() {
             <div className="flex items-start space-x-4">
               <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Sales & Lead Generation</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Sales & Lead Generation
+                </h3>
                 <p className="text-gray-600">
-                  Build targeted prospect lists with verified contact information for your outreach campaigns.
+                  Build targeted prospect lists with verified contact information for your outreach
+                  campaigns.
                 </p>
               </div>
             </div>
@@ -215,7 +237,8 @@ export default function LandingPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Market Research</h3>
                 <p className="text-gray-600">
-                  Analyze competitors, understand market trends, and identify business opportunities in any location.
+                  Analyze competitors, understand market trends, and identify business opportunities
+                  in any location.
                 </p>
               </div>
             </div>
@@ -226,7 +249,8 @@ export default function LandingPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Local SEO Agencies</h3>
                 <p className="text-gray-600">
-                  Gather client data, analyze local competition, and track business listings across different areas.
+                  Gather client data, analyze local competition, and track business listings across
+                  different areas.
                 </p>
               </div>
             </div>
@@ -237,7 +261,8 @@ export default function LandingPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Business Development</h3>
                 <p className="text-gray-600">
-                  Find potential partners, vendors, or service providers in specific industries and locations.
+                  Find potential partners, vendors, or service providers in specific industries and
+                  locations.
                 </p>
               </div>
             </div>
@@ -246,9 +271,12 @@ export default function LandingPage() {
             <div className="flex items-start space-x-4">
               <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Real Estate Professionals</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Real Estate Professionals
+                </h3>
                 <p className="text-gray-600">
-                  Collect data on local businesses, amenities, and services for property listings and market reports.
+                  Collect data on local businesses, amenities, and services for property listings
+                  and market reports.
                 </p>
               </div>
             </div>
@@ -259,7 +287,8 @@ export default function LandingPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Data Analysts</h3>
                 <p className="text-gray-600">
-                  Extract structured business data for analysis, visualization, and reporting purposes.
+                  Extract structured business data for analysis, visualization, and reporting
+                  purposes.
                 </p>
               </div>
             </div>
@@ -301,10 +330,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">7-day history</span>
                 </li>
               </ul>
-              <button
-                onClick={() => router.push('/register')}
-                className="w-full btn-secondary"
-              >
+              <button onClick={() => router.push("/register")} className="w-full btn-secondary">
                 Get Started
               </button>
             </div>
@@ -343,10 +369,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">Email support</span>
                 </li>
               </ul>
-              <button
-                onClick={() => router.push('/register')}
-                className="w-full btn-primary"
-              >
+              <button onClick={() => router.push("/register")} className="w-full btn-primary">
                 Subscribe Now
               </button>
             </div>
@@ -380,10 +403,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">Priority support</span>
                 </li>
               </ul>
-              <button
-                onClick={() => router.push('/register')}
-                className="w-full btn-secondary"
-              >
+              <button onClick={() => router.push("/register")} className="w-full btn-secondary">
                 Subscribe Now
               </button>
             </div>
@@ -394,14 +414,12 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="py-20 bg-primary-600">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Extract Business Data?
-          </h2>
+          <h2 className="text-4xl font-bold text-white mb-6">Ready to Extract Business Data?</h2>
           <p className="text-xl text-primary-100 mb-8">
             Join thousands of professionals using Google Maps Extractor to grow their business.
           </p>
           <button
-            onClick={() => router.push('/register')}
+            onClick={() => router.push("/register")}
             className="bg-white text-primary-600 hover:bg-gray-100 font-semibold px-8 py-3 rounded-lg text-lg flex items-center justify-center space-x-2 mx-auto"
           >
             <span>Start Free Today</span>
@@ -427,30 +445,78 @@ export default function LandingPage() {
             <div>
               <h4 className="text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Features</a></li>
-                <li><a href="#" className="hover:text-white">Pricing</a></li>
-                <li><a href="#" className="hover:text-white">API</a></li>
-                <li><a href="#" className="hover:text-white">Documentation</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    API
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Documentation
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-white font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">About</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Blog
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Careers
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Contact
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-white">Cookie Policy</a></li>
-                <li><a href="#" className="hover:text-white">GDPR</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Privacy Policy
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Terms of Service
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Cookie Policy
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    GDPR
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

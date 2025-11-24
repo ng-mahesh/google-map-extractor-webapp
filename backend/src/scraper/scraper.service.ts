@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ExtractedPlace } from '../extraction/schemas/extraction.schema';
-
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { Page } from 'puppeteer';
 
 puppeteer.use(StealthPlugin());
 
@@ -91,7 +91,7 @@ export class ScraperService {
     }
   }
 
-  private async scrollResults(page: any, maxResults: number) {
+  private async scrollResults(page: Page, maxResults: number) {
     const feedSelector = 'div[role="feed"]';
     let previousHeight = 0;
     let attempts = 0;
@@ -130,7 +130,11 @@ export class ScraperService {
     }
   }
 
-  private async extractPlaceData(page: any, maxResults: number, onLog: (message: string) => void = () => {}): Promise<ExtractedPlace[]> {
+  private async extractPlaceData(
+    page: Page,
+    maxResults: number,
+    onLog: (message: string) => void = () => {},
+  ): Promise<ExtractedPlace[]> {
     const places: ExtractedPlace[] = [];
 
     // Get all place articles
@@ -143,10 +147,11 @@ export class ScraperService {
         const element = placeElements[i];
 
         // Extract name from the article card before clicking (as fallback)
-        const cardName = await element.evaluate((el: any) => {
-          const nameEl = el.querySelector('div.qBF1Pd') ||
-                        el.querySelector('div.fontHeadlineSmall') ||
-                        el.querySelector('a[aria-label]');
+        const cardName = await element.evaluate((el: Element) => {
+          const nameEl =
+            el.querySelector('div.qBF1Pd') ||
+            el.querySelector('div.fontHeadlineSmall') ||
+            el.querySelector('a[aria-label]');
           return nameEl?.textContent?.trim() || nameEl?.getAttribute('aria-label') || '';
         });
 
@@ -160,7 +165,7 @@ export class ScraperService {
 
         // Extract data from the details panel
         const placeData = await page.evaluate((fallbackName: string) => {
-          const data: any = {
+          const data: Record<string, any> = {
             category: '',
             name: '',
             address: '',
@@ -251,17 +256,18 @@ export class ScraperService {
 
           // Extract top 5 reviews
           const reviewElements = document.querySelectorAll('div[data-review-id]');
-          const reviews: any[] = [];
+          const reviews: Array<Record<string, any>> = [];
 
           for (let i = 0; i < Math.min(5, reviewElements.length); i++) {
             const reviewEl = reviewElements[i];
             const authorEl = reviewEl.querySelector('button[aria-label]');
             const ratingEl = reviewEl.querySelector('span[role="img"]');
-            const textEl = reviewEl.querySelector('span[class*="review-text"]') ||
-                           reviewEl.querySelector('div[class*="review-full-text"]');
+            const textEl =
+              reviewEl.querySelector('span[class*="review-text"]') ||
+              reviewEl.querySelector('div[class*="review-full-text"]');
             const dateEl = reviewEl.querySelector('span[class*="review-date"]');
 
-            const review: any = {
+            const review: Record<string, any> = {
               author: authorEl?.getAttribute('aria-label') || 'Anonymous',
               rating: 0,
               text: textEl?.textContent?.trim() || '',
@@ -290,10 +296,10 @@ export class ScraperService {
 
         // Try to extract email from website or page
         if (placeData.website) {
-          placeData.email = await this.extractEmailFromWebsite(page, placeData.website);
+          placeData.email = await this.extractEmailFromWebsite();
         }
 
-        places.push(placeData);
+        places.push(placeData as ExtractedPlace);
 
         this.logger.debug(`Extracted place ${i + 1}/${limit}: ${placeData.name}`);
       } catch (error) {
@@ -304,7 +310,7 @@ export class ScraperService {
     return places;
   }
 
-  private async extractEmailFromWebsite(page: any, website: string): Promise<string> {
+  private async extractEmailFromWebsite(): Promise<string> {
     // Simple email extraction - in production, you might want to visit the website
     // For now, we'll just return empty string
     // This would require opening the website in a new tab and searching for email

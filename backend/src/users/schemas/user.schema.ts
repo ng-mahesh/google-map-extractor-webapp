@@ -33,7 +33,7 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Method to check if user has exceeded quota
-UserSchema.methods.hasQuotaRemaining = function() {
+UserSchema.methods.hasQuotaRemaining = function () {
   const now = new Date();
   const resetDate = new Date(this.quotaResetDate);
 
@@ -46,7 +46,7 @@ UserSchema.methods.hasQuotaRemaining = function() {
   return this.usedQuotaToday < this.dailyQuota;
 };
 
-UserSchema.methods.incrementQuota = function() {
+UserSchema.methods.incrementQuota = function () {
   this.usedQuotaToday += 1;
   return this.save();
 };

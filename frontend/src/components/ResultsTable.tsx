@@ -1,51 +1,60 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Extraction, ExtractedPlace, extractionAPI } from '@/lib/api';
-import toast from 'react-hot-toast';
-import { Download, Search, ExternalLink, Phone, Mail, MapPin, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from "react";
+import { Extraction, ExtractedPlace, extractionAPI } from "@/lib/api";
+import toast from "react-hot-toast";
+import {
+  Download,
+  Search,
+  ExternalLink,
+  Phone,
+  Mail,
+  MapPin,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 interface ResultsTableProps {
   extraction: Extraction;
 }
 
 export default function ResultsTable({ extraction }: ResultsTableProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [contactFilter, setContactFilter] = useState<'all' | 'yes' | 'no'>('all');
-  const [websiteFilter, setWebsiteFilter] = useState<'all' | 'yes' | 'no'>('all');
-  const [sortBy, setSortBy] = useState<'none' | 'rating-high' | 'rating-low'>('none');
+  const [contactFilter, setContactFilter] = useState<"all" | "yes" | "no">("all");
+  const [websiteFilter, setWebsiteFilter] = useState<"all" | "yes" | "no">("all");
+  const [sortBy, setSortBy] = useState<"none" | "rating-high" | "rating-low">("none");
 
   // Apply filters and sorting
   let filteredResults = extraction.results.filter((place) => {
     // Search filter
     const search = searchTerm.toLowerCase();
-    const matchesSearch = (
+    const matchesSearch =
       place.name.toLowerCase().includes(search) ||
       place.address.toLowerCase().includes(search) ||
       place.category.toLowerCase().includes(search) ||
-      place.phone.toLowerCase().includes(search)
-    );
+      place.phone.toLowerCase().includes(search);
 
     if (!matchesSearch) return false;
 
     // Contact filter (phone or email)
     const hasContact = !!(place.phone || place.email);
-    if (contactFilter === 'yes' && !hasContact) {
+    if (contactFilter === "yes" && !hasContact) {
       return false;
     }
-    if (contactFilter === 'no' && hasContact) {
+    if (contactFilter === "no" && hasContact) {
       return false;
     }
 
     // Website filter
     const hasWebsite = !!place.website;
-    if (websiteFilter === 'yes' && !hasWebsite) {
+    if (websiteFilter === "yes" && !hasWebsite) {
       return false;
     }
-    if (websiteFilter === 'no' && hasWebsite) {
+    if (websiteFilter === "no" && hasWebsite) {
       return false;
     }
 
@@ -53,9 +62,9 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
   });
 
   // Apply sorting
-  if (sortBy === 'rating-high') {
+  if (sortBy === "rating-high") {
     filteredResults = [...filteredResults].sort((a, b) => b.rating - a.rating);
-  } else if (sortBy === 'rating-low') {
+  } else if (sortBy === "rating-low") {
     filteredResults = [...filteredResults].sort((a, b) => a.rating - b.rating);
   }
 
@@ -74,7 +83,7 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle items per page change
@@ -89,19 +98,22 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
       const response = await extractionAPI.exportToCSV(extraction._id);
 
       // Create a blob from the response
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      const blob = new Blob([response.data], { type: "text/csv" });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', `google-maps-${extraction.keyword.replace(/\s+/g, '-')}-${Date.now()}.csv`);
+      link.setAttribute(
+        "download",
+        `google-maps-${extraction.keyword.replace(/\s+/g, "-")}-${Date.now()}.csv`
+      );
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      toast.success('CSV exported successfully!');
-    } catch (error) {
-      toast.error('Failed to export CSV');
+      toast.success("CSV exported successfully!");
+    } catch {
+      toast.error("Failed to export CSV");
     } finally {
       setDownloading(false);
     }
@@ -127,7 +139,7 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
       pages.push(1);
 
       if (currentPage > 3) {
-        pages.push('...');
+        pages.push("...");
       }
 
       // Show pages around current page
@@ -139,7 +151,7 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
       }
 
       if (currentPage < totalPages - 2) {
-        pages.push('...');
+        pages.push("...");
       }
 
       // Always show last page
@@ -159,9 +171,12 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
           <h2 className="text-2xl font-semibold">{extraction.keyword}</h2>
           <p className="text-sm text-gray-600 mt-1">
             {extraction.totalResults} results found
-            {extraction.duplicatesSkipped > 0 && ` • ${extraction.duplicatesSkipped} duplicates skipped`}
-            {extraction.withoutPhoneSkipped > 0 && ` • ${extraction.withoutPhoneSkipped} without phone skipped`}
-            {(extraction.withoutWebsiteSkipped || 0) > 0 && ` • ${extraction.withoutWebsiteSkipped} without website skipped`}
+            {extraction.duplicatesSkipped > 0 &&
+              ` • ${extraction.duplicatesSkipped} duplicates skipped`}
+            {extraction.withoutPhoneSkipped > 0 &&
+              ` • ${extraction.withoutPhoneSkipped} without phone skipped`}
+            {(extraction.withoutWebsiteSkipped || 0) > 0 &&
+              ` • ${extraction.withoutWebsiteSkipped} without website skipped`}
           </p>
         </div>
 
@@ -171,7 +186,7 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
           className="btn-primary flex items-center space-x-2 whitespace-nowrap"
         >
           <Download className="w-4 h-4" />
-          <span>{downloading ? 'Exporting...' : 'Export CSV'}</span>
+          <span>{downloading ? "Exporting..." : "Export CSV"}</span>
         </button>
       </div>
 
@@ -213,14 +228,17 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
         <div className="flex flex-wrap gap-4 items-center flex-1">
           {/* Contact Filter */}
           <div className="flex items-center space-x-2">
-            <label htmlFor="contactFilter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            <label
+              htmlFor="contactFilter"
+              className="text-sm font-medium text-gray-700 whitespace-nowrap"
+            >
               Contact:
             </label>
             <select
               id="contactFilter"
               value={contactFilter}
               onChange={(e) => {
-                setContactFilter(e.target.value as 'all' | 'yes' | 'no');
+                setContactFilter(e.target.value as "all" | "yes" | "no");
                 setCurrentPage(1);
               }}
               className="input-field py-2 px-3 text-sm"
@@ -233,14 +251,17 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
 
           {/* Website Filter */}
           <div className="flex items-center space-x-2">
-            <label htmlFor="websiteFilter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            <label
+              htmlFor="websiteFilter"
+              className="text-sm font-medium text-gray-700 whitespace-nowrap"
+            >
               Website:
             </label>
             <select
               id="websiteFilter"
               value={websiteFilter}
               onChange={(e) => {
-                setWebsiteFilter(e.target.value as 'all' | 'yes' | 'no');
+                setWebsiteFilter(e.target.value as "all" | "yes" | "no");
                 setCurrentPage(1);
               }}
               className="input-field py-2 px-3 text-sm"
@@ -253,14 +274,17 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
 
           {/* Sort by Rating */}
           <div className="flex items-center space-x-2">
-            <label htmlFor="sortRating" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            <label
+              htmlFor="sortRating"
+              className="text-sm font-medium text-gray-700 whitespace-nowrap"
+            >
               Sort by:
             </label>
             <select
               id="sortRating"
               value={sortBy}
               onChange={(e) => {
-                setSortBy(e.target.value as 'none' | 'rating-high' | 'rating-low');
+                setSortBy(e.target.value as "none" | "rating-high" | "rating-low");
                 setCurrentPage(1);
               }}
               className="input-field py-2 px-3 text-sm"
@@ -273,12 +297,12 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
         </div>
 
         {/* Clear Filters */}
-        {(contactFilter !== 'all' || websiteFilter !== 'all' || sortBy !== 'none') && (
+        {(contactFilter !== "all" || websiteFilter !== "all" || sortBy !== "none") && (
           <button
             onClick={() => {
-              setContactFilter('all');
-              setWebsiteFilter('all');
-              setSortBy('none');
+              setContactFilter("all");
+              setWebsiteFilter("all");
+              setSortBy("none");
               setCurrentPage(1);
             }}
             className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap"
@@ -319,9 +343,7 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedResults.map((place, index) => (
                   <tr key={startIndex + index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {startIndex + index + 1}
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{startIndex + index + 1}</td>
                     <td className="px-6 py-4">
                       <div>
                         <div className="flex items-center space-x-2">
@@ -331,11 +353,13 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
                             rel="noopener noreferrer"
                             className="font-semibold text-primary-600 hover:text-primary-700 flex items-center space-x-1"
                           >
-                            <span>{place.name || 'Business Name'}</span>
+                            <span>{place.name || "Business Name"}</span>
                             <ExternalLink className="w-3 h-3 flex-shrink-0" />
                           </a>
                         </div>
-                        <div className="text-sm text-gray-600 mt-1">{place.category || 'Category'}</div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {place.category || "Category"}
+                        </div>
                         {place.address && (
                           <a
                             href={getGoogleMapsUrl(place)}
@@ -422,7 +446,8 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 {/* Showing info */}
                 <div className="text-sm text-gray-600">
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredResults.length)} of {filteredResults.length} results
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredResults.length)} of{" "}
+                  {filteredResults.length} results
                 </div>
 
                 {/* Pagination controls */}
@@ -442,15 +467,15 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
                     {getPageNumbers().map((page, index) => (
                       <button
                         key={index}
-                        onClick={() => typeof page === 'number' ? handlePageChange(page) : null}
-                        disabled={page === '...'}
+                        onClick={() => (typeof page === "number" ? handlePageChange(page) : null)}
+                        disabled={page === "..."}
                         className={`px-3 py-2 rounded-lg text-sm font-medium ${
                           page === currentPage
-                            ? 'bg-primary-600 text-white'
-                            : page === '...'
-                            ? 'text-gray-400 cursor-default'
-                            : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        } ${page === '...' ? '' : 'min-w-[40px]'}`}
+                            ? "bg-primary-600 text-white"
+                            : page === "..."
+                              ? "text-gray-400 cursor-default"
+                              : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        } ${page === "..." ? "" : "min-w-[40px]"}`}
                       >
                         {page}
                       </button>

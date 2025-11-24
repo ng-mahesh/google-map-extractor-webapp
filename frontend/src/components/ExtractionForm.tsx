@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { extractionAPI } from '@/lib/api';
-import toast from 'react-hot-toast';
-import { Search, Settings, X, Loader } from 'lucide-react';
+import { useState } from "react";
+import { extractionAPI } from "@/lib/api";
+import toast from "react-hot-toast";
+import { Search, Settings, X, Loader } from "lucide-react";
 
 interface ExtractionFormProps {
   onExtractionComplete: () => void;
 }
 
 export default function ExtractionForm({ onExtractionComplete }: ExtractionFormProps) {
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState("");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [skipWithoutPhone, setSkipWithoutPhone] = useState(true);
   const [skipWithoutWebsite, setSkipWithoutWebsite] = useState(false);
@@ -24,7 +24,7 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
     e.preventDefault();
 
     if (!keyword.trim()) {
-      toast.error('Please enter a search keyword');
+      toast.error("Please enter a search keyword");
       return;
     }
 
@@ -40,13 +40,26 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
         maxResults,
       });
 
-      toast.success('Extraction started! Processing in background...');
+      toast.success("Extraction started! Processing in background...");
       setCurrentExtractionId(response.data.id);
 
       // Poll for completion with logs
       pollExtractionStatus(response.data.id);
-    } catch (error: any) {
-      const message = error.response?.data?.message || 'Failed to start extraction';
+    } catch (err: unknown) {
+      let message = "Failed to start extraction";
+      interface AxiosError {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      }
+      if (typeof err === "object" && err !== null && "response" in err) {
+        const axiosError = err as AxiosError;
+        if (axiosError.response?.data?.message) {
+          message = axiosError.response.data.message;
+        }
+      }
       toast.error(message);
       setLoading(false);
     }
@@ -57,12 +70,12 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
 
     try {
       await extractionAPI.cancelExtraction(currentExtractionId);
-      toast.success('Extraction cancelled');
+      toast.success("Extraction cancelled");
       setLoading(false);
       setCurrentExtractionId(null);
       setLogs([]);
-    } catch (error) {
-      toast.error('Failed to cancel extraction');
+    } catch {
+      toast.error("Failed to cancel extraction");
     }
   };
 
@@ -80,18 +93,18 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
           setLogs(extraction.logs);
         }
 
-        if (extraction.status === 'completed') {
+        if (extraction.status === "completed") {
           toast.success(`Extraction completed! Found ${extraction.totalResults} results.`);
           setLoading(false);
-          setKeyword('');
+          setKeyword("");
           setCurrentExtractionId(null);
           setLogs([]);
           onExtractionComplete();
-        } else if (extraction.status === 'failed') {
-          toast.error(`Extraction failed: ${extraction.errorMessage || 'Unknown error'}`);
+        } else if (extraction.status === "failed") {
+          toast.error(`Extraction failed: ${extraction.errorMessage || "Unknown error"}`);
           setLoading(false);
           setCurrentExtractionId(null);
-        } else if (extraction.status === 'cancelled') {
+        } else if (extraction.status === "cancelled") {
           setLoading(false);
           setCurrentExtractionId(null);
           setLogs([]);
@@ -100,13 +113,13 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
           if (attempts < maxAttempts) {
             setTimeout(checkStatus, 5000); // Check every 5 seconds
           } else {
-            toast.error('Extraction is taking longer than expected. Please check history.');
+            toast.error("Extraction is taking longer than expected. Please check history.");
             setLoading(false);
             setCurrentExtractionId(null);
           }
         }
-      } catch (error) {
-        console.error('Error checking status:', error);
+      } catch {
+        console.error("Error checking status");
         setLoading(false);
         setCurrentExtractionId(null);
       }
@@ -136,9 +149,7 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
             className="input-field"
             disabled={loading}
           />
-          <p className="mt-1 text-sm text-gray-500">
-            Enter what you would search on Google Maps
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Enter what you would search on Google Maps</p>
         </div>
 
         <div className="border-t pt-4">
@@ -148,7 +159,7 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
             className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900"
           >
             <Settings className="w-4 h-4" />
-            <span>{showAdvanced ? 'Hide' : 'Show'} Advanced Options</span>
+            <span>{showAdvanced ? "Hide" : "Show"} Advanced Options</span>
           </button>
 
           {showAdvanced && (
@@ -196,7 +207,10 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
               </div>
 
               <div>
-                <label htmlFor="maxResults" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="maxResults"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Maximum Results: {maxResults}
                 </label>
                 <input
@@ -221,18 +235,14 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
 
         {/* Action Buttons */}
         <div className="flex space-x-3">
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary flex-1"
-          >
+          <button type="submit" disabled={loading} className="btn-primary flex-1">
             {loading ? (
               <span className="flex items-center justify-center">
                 <Loader className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
                 Processing extraction...
               </span>
             ) : (
-              'Start Extraction'
+              "Start Extraction"
             )}
           </button>
 
@@ -267,8 +277,8 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
 
       <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
         <p className="text-sm text-yellow-800">
-          <strong>Note:</strong> Extraction may take 30-60 seconds or more depending on the number of results.
-          You can monitor the real-time progress above and cancel anytime.
+          <strong>Note:</strong> Extraction may take 30-60 seconds or more depending on the number
+          of results. You can monitor the real-time progress above and cancel anytime.
         </p>
       </div>
     </div>
