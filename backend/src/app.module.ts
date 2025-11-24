@@ -2,12 +2,17 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { WinstonModule } from 'nest-winston';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
+import { winstonConfig } from './common/logging/winston.config';
+import { PerformanceMonitor } from './common/logging/performance.monitor';
+import { LoggingInterceptor } from './common/logging/logging.interceptor';
+import { SentryFilter } from './common/logging/sentry.filter';
 
 @Module({
   imports: [
@@ -16,6 +21,9 @@ import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-prox
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Logging
+    WinstonModule.forRoot(winstonConfig),
 
     // Database
     MongooseModule.forRootAsync({
@@ -49,6 +57,15 @@ import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-prox
       provide: APP_GUARD,
       useClass: ThrottlerBehindProxyGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: SentryFilter,
+    },
+    PerformanceMonitor,
   ],
 })
 export class AppModule {}

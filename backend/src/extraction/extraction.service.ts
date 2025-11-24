@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Extraction, ExtractionDocument } from './schemas/extraction.schema';
@@ -9,6 +9,7 @@ import { Parser } from 'json2csv';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { CheckpointData } from '../scraper/interfaces/checkpoint.interface';
+import { PerformanceMonitor } from '../common/logging/performance.monitor';
 
 @Injectable()
 export class ExtractionService {
@@ -20,6 +21,7 @@ export class ExtractionService {
     @InjectModel(Extraction.name) private extractionModel: Model<ExtractionDocument>,
     private scraperService: ScraperService,
     private usersService: UsersService,
+    @Inject(PerformanceMonitor) private performanceMonitor: PerformanceMonitor,
   ) {
     this.checkpointDir = join(process.cwd(), 'checkpoints');
     this.checkpointsEnabled = process.env.SCRAPER_ENABLE_CHECKPOINTS !== 'false';
@@ -85,25 +87,30 @@ export class ExtractionService {
         await this.saveCheckpoint(checkpointData);
       };
 
+      // Measure scraping performance
       const {
         results,
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped,
         failedPlaces,
-      } = await this.scraperService.scrapeGoogleMaps(dto.keyword, {
-        skipDuplicates: dto.skipDuplicates,
-        skipWithoutPhone: dto.skipWithoutPhone,
-        skipWithoutWebsite: dto.skipWithoutWebsite,
-        maxResults: dto.maxResults,
-        onLog: addLog,
-        resumeFromCheckpoint: !!existingCheckpoint,
-        saveCheckpoints: this.checkpointsEnabled,
-        checkpointInterval: parseInt(process.env.SCRAPER_CHECKPOINT_INTERVAL || '10', 10),
-        onCheckpoint: saveCheckpointCallback,
-        existingCheckpoint,
-        extractionId,
-      });
+      } = await this.performanceMonitor.measureAsync(
+        `extraction-${extractionId}`,
+        async () =>
+          await this.scraperService.scrapeGoogleMaps(dto.keyword, {
+            skipDuplicates: dto.skipDuplicates,
+            skipWithoutPhone: dto.skipWithoutPhone,
+            skipWithoutWebsite: dto.skipWithoutWebsite,
+            maxResults: dto.maxResults,
+            onLog: addLog,
+            resumeFromCheckpoint: !!existingCheckpoint,
+            saveCheckpoints: this.checkpointsEnabled,
+            checkpointInterval: parseInt(process.env.SCRAPER_CHECKPOINT_INTERVAL || '10', 10),
+            onCheckpoint: saveCheckpointCallback,
+            existingCheckpoint,
+            extractionId,
+          }),
+      );
 
       await this.extractionModel.findByIdAndUpdate(extractionId, {
         status: 'completed',
