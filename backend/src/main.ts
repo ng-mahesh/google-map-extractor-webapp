@@ -1,9 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
+import { initializeSentry } from './common/logging/sentry.config';
 
 async function bootstrap() {
+  // Initialize Sentry before creating the app
+  initializeSentry();
+
   const app = await NestFactory.create(AppModule);
+
+  // Use Winston logger
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Enable CORS
   app.enableCors({
@@ -28,7 +36,14 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 Backend server is running on: http://localhost:${port}/api`);
+
+  const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  logger.log(`🚀 Backend server is running on: http://localhost:${port}/api`);
+  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.log(`Logging to: ${process.env.LOG_DIR || 'logs'} directory`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start application:', error);
+  process.exit(1);
+});
