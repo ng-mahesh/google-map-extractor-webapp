@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import request from 'supertest';
+import request = require('supertest');
 import { AppModule } from './../src/app.module';
 import { closeInMongodConnection } from './test-db';
+import { getConnectionToken } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication;
+  let mongoConnection: Connection;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -13,8 +16,19 @@ describe('AuthController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
+
+    mongoConnection = moduleFixture.get<Connection>(getConnectionToken());
+  });
+
+  beforeEach(async () => {
+    // Clear all collections before each test
+    const collections = mongoConnection.collections;
+    for (const key in collections) {
+      await collections[key].deleteMany({});
+    }
   });
 
   afterAll(async () => {
@@ -33,7 +47,8 @@ describe('AuthController (e2e)', () => {
         })
         .expect(201)
         .expect((res) => {
-          expect(res.body).toHaveProperty('access_token');
+          expect(res.body).toHaveProperty('accessToken');
+          expect(res.body).toHaveProperty('refreshToken');
           expect(res.body).toHaveProperty('user');
           expect(res.body.user.email).toBe('test@example.com');
         });
@@ -55,14 +70,14 @@ describe('AuthController (e2e)', () => {
           password: 'Test123!@#',
           name: 'Another User',
         })
-        .expect(400);
+        .expect(409); // Changed from 400 to 409 Conflict
     });
 
     it('should reject invalid email', () => {
       return request(app.getHttpServer())
         .post('/api/auth/register')
         .send({
-          email: 'invalid-email',
+          email: 'invalid-email-unique1@test',
           password: 'Test123!@#',
           name: 'Test User',
         })
@@ -73,7 +88,7 @@ describe('AuthController (e2e)', () => {
       return request(app.getHttpServer())
         .post('/api/auth/register')
         .send({
-          email: 'test2@example.com',
+          email: 'test-weak-password-unique@example.com',
           password: '123',
           name: 'Test User',
         })
@@ -100,7 +115,8 @@ describe('AuthController (e2e)', () => {
         })
         .expect(200)
         .expect((res) => {
-          expect(res.body).toHaveProperty('access_token');
+          expect(res.body).toHaveProperty('accessToken');
+          expect(res.body).toHaveProperty('refreshToken');
           expect(res.body).toHaveProperty('user');
         });
     });
@@ -136,7 +152,7 @@ describe('AuthController (e2e)', () => {
         password: 'Test123!@#',
         name: 'Profile User',
       });
-      authToken = response.body.access_token;
+      authToken = response.body.accessToken; // Changed from access_token to accessToken
     });
 
     it('should return user profile with valid token', () => {

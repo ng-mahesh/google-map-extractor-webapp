@@ -6,16 +6,31 @@ import { ScraperService } from '../scraper/scraper.service';
 import { UsersService } from '../users/users.service';
 import { StartExtractionDto } from './dto/start-extraction.dto';
 import { Parser } from 'json2csv';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { CheckpointData } from '../scraper/interfaces/checkpoint.interface';
 
 @Injectable()
 export class ExtractionService {
   private readonly logger = new Logger(ExtractionService.name);
+  private readonly checkpointDir: string;
+  private readonly checkpointsEnabled: boolean;
 
   constructor(
     @InjectModel(Extraction.name) private extractionModel: Model<ExtractionDocument>,
     private scraperService: ScraperService,
     private usersService: UsersService,
-  ) {}
+  ) {
+    this.checkpointDir = join(process.cwd(), 'checkpoints');
+    this.checkpointsEnabled = process.env.SCRAPER_ENABLE_CHECKPOINTS !== 'false';
+
+    // Ensure checkpoint directory exists
+    if (this.checkpointsEnabled) {
+      fs.mkdir(this.checkpointDir, { recursive: true }).catch((error) => {
+        this.logger.warn(`Failed to create checkpoint directory: ${error.message}`);
+      });
+    }
+  }
 
   async startExtraction(userId: string, dto: StartExtractionDto): Promise<ExtractionDocument> {
     // Check quota
@@ -49,6 +64,15 @@ export class ExtractionService {
 
   private async performExtraction(extractionId: string, dto: StartExtractionDto) {
     try {
+      // Check for existing checkpoint
+      const existingCheckpoint = await this.loadCheckpoint(extractionId);
+
+      if (existingCheckpoint) {
+        this.logger.log(
+          `Resuming extraction ${extractionId} from checkpoint at index ${existingCheckpoint.lastProcessedIndex}`,
+        );
+      }
+
       // Create log callback
       const addLog = async (message: string) => {
         await this.extractionModel.findByIdAndUpdate(extractionId, {
@@ -56,14 +80,30 @@ export class ExtractionService {
         });
       };
 
-      const { results, duplicatesSkipped, withoutPhoneSkipped, withoutWebsiteSkipped } =
-        await this.scraperService.scrapeGoogleMaps(dto.keyword, {
-          skipDuplicates: dto.skipDuplicates,
-          skipWithoutPhone: dto.skipWithoutPhone,
-          skipWithoutWebsite: dto.skipWithoutWebsite,
-          maxResults: dto.maxResults,
-          onLog: addLog,
-        });
+      // Create checkpoint callback
+      const saveCheckpointCallback = async (checkpointData: CheckpointData) => {
+        await this.saveCheckpoint(checkpointData);
+      };
+
+      const {
+        results,
+        duplicatesSkipped,
+        withoutPhoneSkipped,
+        withoutWebsiteSkipped,
+        failedPlaces,
+      } = await this.scraperService.scrapeGoogleMaps(dto.keyword, {
+        skipDuplicates: dto.skipDuplicates,
+        skipWithoutPhone: dto.skipWithoutPhone,
+        skipWithoutWebsite: dto.skipWithoutWebsite,
+        maxResults: dto.maxResults,
+        onLog: addLog,
+        resumeFromCheckpoint: !!existingCheckpoint,
+        saveCheckpoints: this.checkpointsEnabled,
+        checkpointInterval: parseInt(process.env.SCRAPER_CHECKPOINT_INTERVAL || '10', 10),
+        onCheckpoint: saveCheckpointCallback,
+        existingCheckpoint,
+        extractionId,
+      });
 
       await this.extractionModel.findByIdAndUpdate(extractionId, {
         status: 'completed',
@@ -72,8 +112,12 @@ export class ExtractionService {
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped: withoutWebsiteSkipped || 0,
+        failedPlaces: failedPlaces || 0,
         completedAt: new Date(),
       });
+
+      // Delete checkpoint on successful completion
+      await this.deleteCheckpoint(extractionId);
 
       this.logger.log(`Extraction ${extractionId} completed successfully`);
     } catch (error) {
@@ -85,6 +129,8 @@ export class ExtractionService {
       });
 
       this.logger.error(`Extraction ${extractionId} failed: ${error.message}`);
+
+      // Keep checkpoint on failure for potential resume
     }
   }
 
@@ -170,6 +216,97 @@ export class ExtractionService {
 
     if (result.deletedCount === 0) {
       throw new BadRequestException('Extraction not found');
+    }
+
+    // Also delete checkpoint if it exists
+    await this.deleteCheckpoint(extractionId);
+  }
+
+  /**
+   * Save checkpoint data to file
+   */
+  async saveCheckpoint(checkpointData: CheckpointData): Promise<void> {
+    if (!this.checkpointsEnabled) {
+      return;
+    }
+
+    try {
+      const checkpointPath = join(this.checkpointDir, `${checkpointData.extractionId}.json`);
+      await fs.writeFile(checkpointPath, JSON.stringify(checkpointData, null, 2), 'utf-8');
+
+      // Update extraction record with checkpoint info
+      await this.extractionModel.findByIdAndUpdate(checkpointData.extractionId, {
+        checkpointSavedAt: new Date(),
+        lastCheckpointIndex: checkpointData.lastProcessedIndex,
+      });
+
+      this.logger.debug(
+        `Checkpoint saved for extraction ${checkpointData.extractionId} at index ${checkpointData.lastProcessedIndex}`,
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to save checkpoint: ${error.message}`);
+    }
+  }
+
+  /**
+   * Load checkpoint data from file
+   */
+  async loadCheckpoint(extractionId: string): Promise<CheckpointData | null> {
+    if (!this.checkpointsEnabled) {
+      return null;
+    }
+
+    try {
+      const checkpointPath = join(this.checkpointDir, `${extractionId}.json`);
+      const data = await fs.readFile(checkpointPath, 'utf-8');
+      const checkpoint: CheckpointData = JSON.parse(data);
+
+      this.logger.log(
+        `Loaded checkpoint for extraction ${extractionId} from index ${checkpoint.lastProcessedIndex}`,
+      );
+
+      return checkpoint;
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        this.logger.warn(`Failed to load checkpoint: ${error.message}`);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Delete checkpoint file
+   */
+  async deleteCheckpoint(extractionId: string): Promise<void> {
+    if (!this.checkpointsEnabled) {
+      return;
+    }
+
+    try {
+      const checkpointPath = join(this.checkpointDir, `${extractionId}.json`);
+      await fs.unlink(checkpointPath);
+      this.logger.debug(`Deleted checkpoint for extraction ${extractionId}`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        this.logger.warn(`Failed to delete checkpoint: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Check if checkpoint exists for an extraction
+   */
+  async hasCheckpoint(extractionId: string): Promise<boolean> {
+    if (!this.checkpointsEnabled) {
+      return false;
+    }
+
+    try {
+      const checkpointPath = join(this.checkpointDir, `${extractionId}.json`);
+      await fs.access(checkpointPath);
+      return true;
+    } catch {
+      return false;
     }
   }
 }

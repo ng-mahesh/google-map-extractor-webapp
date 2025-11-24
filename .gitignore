@@ -48,3 +48,9 @@ temp/
 
 # Puppeteer
 .local-chromium/
+
+# Debug artifacts
+backend/debug/
+
+# Checkpoints
+checkpoints/
