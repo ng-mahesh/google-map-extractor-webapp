@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ScraperService } from './scraper.service';
+import { DebugService } from './debug/debug.service';
 import { ExtractedPlace } from '../extraction/schemas/extraction.schema';
+import { ConfigService } from '@nestjs/config';
 
 // Mock Puppeteer
 jest.mock('puppeteer-extra', () => ({
@@ -10,13 +12,34 @@ jest.mock('puppeteer-extra', () => ({
 
 describe('ScraperService', () => {
   let service: ScraperService;
+  let mockDebugService: Partial<DebugService>;
+  let mockConfigService: Partial<ConfigService>;
 
   beforeEach(async () => {
+    mockDebugService = {
+      isDebugMode: jest.fn().mockReturnValue(true),
+      createDebugDirectory: jest.fn(),
+      saveScreenshot: jest.fn(),
+      saveHtmlDump: jest.fn(),
+    };
+
+    mockConfigService = {
+      get: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ScraperService],
+      providers: [
+        ScraperService,
+        { provide: DebugService, useValue: mockDebugService },
+        { provide: ConfigService, useValue: mockConfigService },
+      ],
     }).compile();
 
     service = module.get<ScraperService>(ScraperService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
   });
 
   describe('filterResults', () => {
