@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { CheckpointData } from '../scraper/interfaces/checkpoint.interface';
 import { PerformanceMonitor } from '../common/logging/performance.monitor';
+import { ExtractionGateway } from './extraction.gateway';
 
 @Injectable()
 export class ExtractionService {
@@ -22,6 +23,7 @@ export class ExtractionService {
     private scraperService: ScraperService,
     private usersService: UsersService,
     @Inject(PerformanceMonitor) private performanceMonitor: PerformanceMonitor,
+    private extractionGateway: ExtractionGateway,
   ) {
     this.checkpointDir = join(process.cwd(), 'checkpoints');
     this.checkpointsEnabled = process.env.SCRAPER_ENABLE_CHECKPOINTS !== 'false';
@@ -75,16 +77,39 @@ export class ExtractionService {
         );
       }
 
+      // Emit initial progress
+      this.extractionGateway.emitProgress(extractionId, {
+        status: 'processing',
+        percentage: 0,
+        message: 'Starting extraction...',
+      });
+
       // Create log callback
       const addLog = async (message: string) => {
         await this.extractionModel.findByIdAndUpdate(extractionId, {
           $push: { logs: `${new Date().toISOString()}: ${message}` },
+        });
+
+        // Emit progress update via WebSocket
+        this.extractionGateway.emitProgress(extractionId, {
+          status: 'processing',
+          message,
         });
       };
 
       // Create checkpoint callback
       const saveCheckpointCallback = async (checkpointData: CheckpointData) => {
         await this.saveCheckpoint(checkpointData);
+
+        // Emit progress update via WebSocket
+        const percentage = Math.round((checkpointData.lastProcessedIndex / dto.maxResults) * 100);
+        this.extractionGateway.emitProgress(extractionId, {
+          status: 'processing',
+          currentIndex: checkpointData.lastProcessedIndex,
+          totalResults: dto.maxResults,
+          percentage,
+          message: `Processed ${checkpointData.lastProcessedIndex} of ${dto.maxResults} results`,
+        });
       };
 
       // Measure scraping performance
@@ -126,6 +151,12 @@ export class ExtractionService {
       // Delete checkpoint on successful completion
       await this.deleteCheckpoint(extractionId);
 
+      // Emit completion via WebSocket
+      this.extractionGateway.emitComplete(extractionId, {
+        status: 'completed',
+        totalResults: results.length,
+      });
+
       this.logger.log(`Extraction ${extractionId} completed successfully`);
     } catch (error) {
       await this.extractionModel.findByIdAndUpdate(extractionId, {
@@ -133,6 +164,11 @@ export class ExtractionService {
         errorMessage: error.message,
         completedAt: new Date(),
         $push: { logs: `${new Date().toISOString()}: ERROR - ${error.message}` },
+      });
+
+      // Emit error via WebSocket
+      this.extractionGateway.emitError(extractionId, {
+        message: error.message,
       });
 
       this.logger.error(`Extraction ${extractionId} failed: ${error.message}`);

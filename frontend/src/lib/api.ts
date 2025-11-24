@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
@@ -25,7 +26,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token refresh
+// Response interceptor to handle token refresh and errors
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -61,10 +62,27 @@ apiClient.interceptors.response.use(
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
           localStorage.removeItem("user");
+
+          toast.error("Session expired. Please login again.");
           window.location.href = "/login";
           return Promise.reject(refreshError);
         }
       }
+    }
+
+    // Show error toast for other errors (excluding auth endpoints to avoid duplicate toasts)
+    if (
+      typeof window !== "undefined" &&
+      !originalRequest.url?.includes("/auth/") &&
+      !originalRequest._skipErrorToast
+    ) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        "An error occurred";
+
+      toast.error(errorMessage);
     }
 
     return Promise.reject(error);

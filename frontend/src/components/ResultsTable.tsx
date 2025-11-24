@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Extraction, ExtractedPlace, extractionAPI } from "@/lib/api";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 import {
   Download,
+  FileSpreadsheet,
   Search,
   ExternalLink,
   Phone,
@@ -119,6 +121,52 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
     }
   };
 
+  const handleExportXLSX = () => {
+    try {
+      // Prepare data for Excel
+      const data = filteredResults.map((place) => ({
+        Name: place.name,
+        Category: place.category,
+        Rating: place.rating || "N/A",
+        Reviews: place.reviewsCount || 0,
+        Address: place.address,
+        Phone: place.phone || "",
+        Website: place.website || "",
+        Email: place.email || "",
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(data);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 30 }, // Name
+        { wch: 20 }, // Category
+        { wch: 8 }, // Rating
+        { wch: 10 }, // Reviews
+        { wch: 40 }, // Address
+        { wch: 15 }, // Phone
+        { wch: 30 }, // Website
+        { wch: 25 }, // Email
+      ];
+      ws["!cols"] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Results");
+
+      // Save file
+      XLSX.writeFile(
+        wb,
+        `google-maps-${extraction.keyword.replace(/\s+/g, "-")}-${Date.now()}.xlsx`
+      );
+
+      toast.success("Excel file exported successfully!");
+    } catch {
+      toast.error("Failed to export Excel file");
+    }
+  };
+
   const getGoogleMapsUrl = (place: ExtractedPlace) => {
     const query = encodeURIComponent(`${place.name}, ${place.address}`);
     return `https://www.google.com/maps/search/?api=1&query=${query}`;
@@ -180,14 +228,23 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          disabled={downloading}
-          className="btn-primary flex items-center space-x-2 whitespace-nowrap"
-        >
-          <Download className="w-4 h-4" />
-          <span>{downloading ? "Exporting..." : "Export CSV"}</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={downloading}
+            className="btn-primary flex items-center space-x-2 whitespace-nowrap"
+          >
+            <Download className="w-4 h-4" />
+            <span>{downloading ? "Exporting..." : "Export CSV"}</span>
+          </button>
+          <button
+            onClick={handleExportXLSX}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors whitespace-nowrap"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* Search and Items Per Page */}
