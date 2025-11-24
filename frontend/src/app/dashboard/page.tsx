@@ -1,26 +1,31 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { isAuthenticated, getUser, removeAuthToken } from '@/lib/auth';
-import { extractionAPI, Extraction } from '@/lib/api';
-import toast from 'react-hot-toast';
-import ExtractionForm from '@/components/ExtractionForm';
-import ExtractionHistory from '@/components/ExtractionHistory';
-import ResultsTable from '@/components/ResultsTable';
-import QuotaDisplay from '@/components/QuotaDisplay';
-import { LogOut, Database } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { isAuthenticated, getUser, removeAuthToken } from "@/lib/auth";
+import { extractionAPI, Extraction } from "@/lib/api";
+import toast from "react-hot-toast";
+import ExtractionForm from "@/components/ExtractionForm";
+import ExtractionHistory from "@/components/ExtractionHistory";
+import ResultsTable from "@/components/ResultsTable";
+import QuotaDisplay from "@/components/QuotaDisplay";
+import { LogOut, Database } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
+  const [user, setUser] = useState<{ name?: string; email: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const [selectedExtraction, setSelectedExtraction] = useState<Extraction | null>(null);
-  const [quota, setQuota] = useState<any>(null);
+  const [quota, setQuota] = useState<{
+    dailyQuota: number;
+    usedToday: number;
+    remaining: number;
+    resetDate: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
 
@@ -33,19 +38,19 @@ export default function DashboardPage() {
     try {
       const response = await extractionAPI.getQuota();
       setQuota(response.data);
-    } catch (error) {
-      console.error('Failed to load quota:', error);
+    } catch {
+      toast.error("Failed to load quota information");
     }
   };
 
   const handleLogout = () => {
     removeAuthToken();
-    toast.success('Logged out successfully');
-    router.push('/login');
+    toast.success("Logged out successfully");
+    router.push("/login");
   };
 
   const handleExtractionComplete = () => {
-    setActiveTab('history');
+    setActiveTab("history");
     loadQuota();
   };
 
@@ -76,12 +81,8 @@ export default function DashboardPage() {
             <div className="flex items-center space-x-3">
               <Database className="w-8 h-8 text-primary-600" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Google Maps Data Extractor
-                </h1>
-                <p className="text-sm text-gray-600">
-                  Welcome back, {user.name || user.email}
-                </p>
+                <h1 className="text-2xl font-bold text-gray-900">Google Maps Data Extractor</h1>
+                <p className="text-sm text-gray-600">Welcome back, {user.name || user.email}</p>
               </div>
             </div>
 
@@ -118,21 +119,21 @@ export default function DashboardPage() {
               <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-8">
                   <button
-                    onClick={() => setActiveTab('new')}
+                    onClick={() => setActiveTab("new")}
                     className={`${
-                      activeTab === 'new'
-                        ? 'border-primary-500 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      activeTab === "new"
+                        ? "border-primary-500 text-primary-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     New Extraction
                   </button>
                   <button
-                    onClick={() => setActiveTab('history')}
+                    onClick={() => setActiveTab("history")}
                     className={`${
-                      activeTab === 'history'
-                        ? 'border-primary-500 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      activeTab === "history"
+                        ? "border-primary-500 text-primary-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Extraction History
@@ -142,7 +143,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'new' ? (
+            {activeTab === "new" ? (
               <ExtractionForm onExtractionComplete={handleExtractionComplete} />
             ) : (
               <ExtractionHistory onViewResults={handleViewResults} />

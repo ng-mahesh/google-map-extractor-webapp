@@ -59,10 +59,11 @@ export class AuthService {
     };
   }
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(email: string, password: string): Promise<Omit<any, 'password'> | null> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
-      const { password, ...result } = user.toObject();
+      const { password: _password, ...result } = user.toObject();
+      void _password; // Explicitly mark as intentionally unused
       return result;
     }
     return null;

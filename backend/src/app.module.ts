@@ -27,10 +27,12 @@ import { ScraperModule } from './scraper/scraper.module';
     // Rate Limiting
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => [{
-        ttl: parseInt(configService.get<string>('RATE_LIMIT_WINDOW_MS') || '86400000'),
-        limit: parseInt(configService.get<string>('RATE_LIMIT_MAX_REQUESTS') || '100'),
-      }],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: parseInt(configService.get<string>('RATE_LIMIT_WINDOW_MS') || '86400000'),
+          limit: parseInt(configService.get<string>('RATE_LIMIT_MAX_REQUESTS') || '100'),
+        },
+      ],
       inject: [ConfigService],
     }),
 

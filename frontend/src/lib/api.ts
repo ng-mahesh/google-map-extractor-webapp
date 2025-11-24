@@ -1,19 +1,19 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -30,10 +30,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
       }
     }
     return Promise.reject(error);
@@ -85,7 +85,7 @@ export interface Extraction {
   _id: string;
   userId: string;
   keyword: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
   results: ExtractedPlace[];
   totalResults: number;
   duplicatesSkipped: number;
@@ -104,20 +104,21 @@ export interface Extraction {
 
 // Auth API
 export const authAPI = {
-  register: (data: RegisterData) => apiClient.post('/auth/register', data),
-  login: (data: LoginData) => apiClient.post('/auth/login', data),
-  getProfile: () => apiClient.get('/auth/profile'),
+  register: (data: RegisterData) => apiClient.post("/auth/register", data),
+  login: (data: LoginData) => apiClient.post("/auth/login", data),
+  getProfile: () => apiClient.get("/auth/profile"),
 };
 
 // Extraction API
 export const extractionAPI = {
-  startExtraction: (data: StartExtractionData) => apiClient.post('/extraction/start', data),
-  getHistory: (limit?: number) => apiClient.get(`/extraction/history${limit ? `?limit=${limit}` : ''}`),
+  startExtraction: (data: StartExtractionData) => apiClient.post("/extraction/start", data),
+  getHistory: (limit?: number) =>
+    apiClient.get(`/extraction/history${limit ? `?limit=${limit}` : ""}`),
   getExtraction: (id: string) => apiClient.get(`/extraction/${id}`),
   cancelExtraction: (id: string) => apiClient.post(`/extraction/${id}/cancel`),
-  exportToCSV: (id: string) => apiClient.get(`/extraction/${id}/export`, { responseType: 'blob' }),
+  exportToCSV: (id: string) => apiClient.get(`/extraction/${id}/export`, { responseType: "blob" }),
   deleteExtraction: (id: string) => apiClient.delete(`/extraction/${id}`),
-  getQuota: () => apiClient.get('/extraction/quota'),
+  getQuota: () => apiClient.get("/extraction/quota"),
 };
 
 export default apiClient;
