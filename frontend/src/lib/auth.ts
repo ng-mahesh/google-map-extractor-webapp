@@ -6,22 +6,31 @@ export interface User {
   usedQuotaToday?: number;
 }
 
-export const setAuthToken = (token: string) => {
+export const setAuthToken = (accessToken: string, refreshToken: string) => {
   if (typeof window !== "undefined") {
-    localStorage.setItem("token", token);
+    localStorage.setItem("access_token", accessToken);
+    localStorage.setItem("refresh_token", refreshToken);
   }
 };
 
-export const getAuthToken = (): string | null => {
+export const getAccessToken = (): string | null => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("token");
+    return localStorage.getItem("access_token");
+  }
+  return null;
+};
+
+export const getRefreshToken = (): string | null => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("refresh_token");
   }
   return null;
 };
 
 export const removeAuthToken = () => {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("token");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
   }
 };
@@ -47,5 +56,5 @@ export const getUser = (): User | null => {
 };
 
 export const isAuthenticated = (): boolean => {
-  return !!getAuthToken();
+  return !!getAccessToken();
 };

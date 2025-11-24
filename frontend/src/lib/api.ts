@@ -13,7 +13,7 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -25,17 +25,48 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors
+// Response interceptor to handle token refresh
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If 401 and not already retried
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
       if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        try {
+          const refreshToken = localStorage.getItem("refresh_token");
+          if (!refreshToken) {
+            throw new Error("No refresh token");
+          }
+
+          // Try to refresh the token
+          const response = await axios.post(`${API_URL}/auth/refresh`, {
+            refreshToken,
+          });
+
+          const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+          // Store new tokens
+          localStorage.setItem("access_token", accessToken);
+          localStorage.setItem("refresh_token", newRefreshToken);
+
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          return apiClient(originalRequest);
+        } catch (refreshError) {
+          // Refresh failed, logout user
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user");
+          window.location.href = "/login";
+          return Promise.reject(refreshError);
+        }
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -106,6 +137,8 @@ export interface Extraction {
 export const authAPI = {
   register: (data: RegisterData) => apiClient.post("/auth/register", data),
   login: (data: LoginData) => apiClient.post("/auth/login", data),
+  logout: (refreshToken: string) => apiClient.post("/auth/logout", { refreshToken }),
+  refresh: (refreshToken: string) => apiClient.post("/auth/refresh", { refreshToken }),
   getProfile: () => apiClient.get("/auth/profile"),
 };
 
