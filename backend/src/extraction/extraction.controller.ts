@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Delete, Body, Param, UseGuards, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ExtractionService } from './extraction.service';
 import { StartExtractionDto } from './dto/start-extraction.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -15,6 +16,7 @@ export class ExtractionController {
   ) {}
 
   @Post('start')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute for starting extractions
   async startExtraction(@CurrentUser() user: any, @Body() dto: StartExtractionDto) {
     const extraction = await this.extractionService.startExtraction(user.userId, dto);
     return {
@@ -26,12 +28,14 @@ export class ExtractionController {
   }
 
   @Get('history')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for history
   async getHistory(@CurrentUser() user: any, @Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit) : 20;
     return this.extractionService.getExtractionHistory(user.userId, limitNum);
   }
 
   @Get('quota')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for quota checks
   async getQuota(@CurrentUser() user: any) {
     const remainingQuota = await this.usersService.getRemainingQuota(user.userId);
     const userDetails = await this.usersService.findById(user.userId);
@@ -45,6 +49,7 @@ export class ExtractionController {
   }
 
   @Get(':id')
+  @SkipThrottle() // Skip throttling for status polling endpoint
   async getExtraction(@CurrentUser() user: any, @Param('id') id: string) {
     return this.extractionService.getExtraction(id, user.userId);
   }

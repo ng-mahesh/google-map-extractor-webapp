@@ -17,13 +17,21 @@ export class AuthController {
   @Post('register')
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 attempts per minute
   async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+    try {
+      return await this.authService.register(registerDto);
+    } catch (error) {
+      throw error;
+    }
   }
 
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 attempts per minute
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    try {
+      return await this.authService.login(loginDto);
+    } catch (error) {
+      throw error;
+    }
   }
 
   @Post('refresh')

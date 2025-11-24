@@ -14,19 +14,62 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
+
+  const validateForm = (): boolean => {
+    const newErrors: {
+      name?: string;
+      email?: string;
+      password?: string;
+      confirmPassword?: string;
+    } = {};
+
+    // Name validation
+    if (!name || name.trim() === "") {
+      newErrors.name = "Name is required";
+    } else if (name.length > 100) {
+      newErrors.name = "Name must not exceed 100 characters";
+    }
+
+    // Email validation
+    if (!email) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    // Password validation
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters long";
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(password)) {
+      newErrors.password =
+        "Password must contain uppercase, lowercase, number, and special character (@$!%*?&)";
+    }
+
+    // Confirm password validation
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrors({});
 
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 8) {
-      toast.error(
-        "Password must be at least 8 characters with uppercase, lowercase, number, and special character"
-      );
+    // Client-side validation
+    if (!validateForm()) {
       return;
     }
 
@@ -39,32 +82,44 @@ export default function RegisterPage() {
       setAuthToken(accessToken, refreshToken);
       setUser(user);
 
-      toast.success("Registration successful!");
+      toast.success("Registration successful! Welcome aboard!");
       router.push("/dashboard");
     } catch (err: unknown) {
       let errorMessage = "Registration failed. Please try again.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      // Attempt to extract message from Axios error response if available
+
       interface AxiosError {
         response?: {
           data?: {
             message?: string;
+            errors?: string[];
           };
+          status?: number;
         };
       }
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        (err as AxiosError).response?.data?.message
-      ) {
+
+      if (typeof err === "object" && err !== null && "response" in err) {
         const axiosError = err as AxiosError;
-        if (axiosError.response?.data?.message) {
-          errorMessage = axiosError.response.data.message;
+        const response = axiosError.response;
+
+        if (response?.data?.message) {
+          errorMessage = response.data.message;
         }
+
+        // Handle specific HTTP error codes
+        if (response?.status === 409) {
+          errorMessage = "This email is already registered. Please login instead.";
+        } else if (response?.status === 429) {
+          errorMessage = "Too many registration attempts. Please try again later.";
+        } else if (response?.status === 400) {
+          // Handle validation errors
+          if (response.data?.errors && Array.isArray(response.data.errors)) {
+            errorMessage = response.data.errors[0];
+          }
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
       }
+
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -91,10 +146,14 @@ export default function RegisterPage() {
                 id="name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field"
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setErrors((prev) => ({ ...prev, name: undefined }));
+                }}
+                className={`input-field ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="John Doe"
               />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
 
             <div>
@@ -105,11 +164,14 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="input-field"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className={`input-field ${errors.email ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="your@email.com"
               />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
 
             <div>
@@ -120,11 +182,17 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="input-field"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
+                className={`input-field ${errors.password ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="••••••••"
               />
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+              <p className="text-xs text-gray-500 mt-1">
+                Must be 8+ characters with uppercase, lowercase, number, and special character
+              </p>
             </div>
 
             <div>
@@ -138,11 +206,16 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="input-field"
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                }}
+                className={`input-field ${errors.confirmPassword ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="••••••••"
               />
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+              )}
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full">

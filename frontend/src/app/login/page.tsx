@@ -12,9 +12,36 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  const validateForm = (): boolean => {
+    const newErrors: { email?: string; password?: string } = {};
+
+    // Email validation
+    if (!email) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    // Password validation
+    if (!password) {
+      newErrors.password = "Password is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrors({});
+
+    // Client-side validation
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -28,28 +55,40 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err: unknown) {
       let errorMessage = "Login failed. Please check your credentials.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      // Attempt to extract message from Axios error response if available
+
       interface AxiosError {
         response?: {
           data?: {
             message?: string;
+            errors?: string[];
           };
+          status?: number;
         };
       }
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        (err as AxiosError).response?.data?.message
-      ) {
+
+      if (typeof err === "object" && err !== null && "response" in err) {
         const axiosError = err as AxiosError;
-        if (axiosError.response?.data?.message) {
-          errorMessage = axiosError.response.data.message;
+        const response = axiosError.response;
+
+        if (response?.data?.message) {
+          errorMessage = response.data.message;
         }
+
+        // Handle specific HTTP error codes
+        if (response?.status === 401) {
+          errorMessage = "Invalid email or password";
+        } else if (response?.status === 429) {
+          errorMessage = "Too many login attempts. Please try again later.";
+        } else if (response?.status === 400) {
+          // Handle validation errors
+          if (response.data?.errors && Array.isArray(response.data.errors)) {
+            errorMessage = response.data.errors[0];
+          }
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
       }
+
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -76,11 +115,14 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="input-field"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className={`input-field ${errors.email ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="your@email.com"
               />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
 
             <div>
@@ -91,11 +133,14 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="input-field"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
+                className={`input-field ${errors.password ? "border-red-500 focus:ring-red-500" : ""}`}
                 placeholder="••••••••"
               />
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
