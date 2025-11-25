@@ -9,11 +9,14 @@ import ExtractionForm from "@/components/ExtractionForm";
 import ExtractionHistory from "@/components/ExtractionHistory";
 import ResultsTable from "@/components/ResultsTable";
 import QuotaDisplay from "@/components/QuotaDisplay";
+import UserProfileMenu from "@/components/UserProfileMenu";
 import { Database } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ name?: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name?: string; email: string; profileImage?: string } | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const [selectedExtraction, setSelectedExtraction] = useState<Extraction | null>(null);
   const [quota, setQuota] = useState<{
@@ -32,7 +35,19 @@ export default function DashboardPage() {
     const currentUser = getUser();
     setUser(currentUser);
     loadQuota();
+    loadUserProfile();
   }, [router]);
+
+  const loadUserProfile = async () => {
+    try {
+      const response = await authAPI.getProfile();
+      setUser(response.data);
+      // Update localStorage with fresh profile data
+      localStorage.setItem("user", JSON.stringify(response.data));
+    } catch (error) {
+      console.error("Failed to load user profile:", error);
+    }
+  };
 
   const loadQuota = async () => {
     try {
@@ -104,17 +119,7 @@ export default function DashboardPage() {
             {/* User Actions */}
             <div className="flex items-center space-x-6">
               {quota && <QuotaDisplay quota={quota} />}
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-google-blue rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  {(user.name || user.email).charAt(0).toUpperCase()}
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-sm text-gray-700 hover:text-gray-900 transition-colors font-medium"
-                >
-                  Sign out
-                </button>
-              </div>
+              <UserProfileMenu user={user} onLogout={handleLogout} />
             </div>
           </div>
         </div>
