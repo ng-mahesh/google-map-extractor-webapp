@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ExtractionForm from "./ExtractionForm";
 import { extractionAPI } from "@/lib/api";
 import toast from "react-hot-toast";
+import { ExtractionProvider } from "@/contexts/ExtractionContext";
 
 // Mock the API module
 jest.mock("@/lib/api", () => ({
@@ -9,6 +10,7 @@ jest.mock("@/lib/api", () => ({
     startExtraction: jest.fn(),
     cancelExtraction: jest.fn(),
     getExtraction: jest.fn(),
+    getHistory: jest.fn(() => Promise.resolve({ data: [] })),
   },
 }));
 
@@ -21,8 +23,23 @@ jest.mock("react-hot-toast", () => ({
   },
 }));
 
+// Mock socket.io-client
+jest.mock("socket.io-client", () => ({
+  io: jest.fn(() => ({
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+    disconnect: jest.fn(),
+    removeAllListeners: jest.fn(),
+  })),
+}));
+
 describe("ExtractionForm", () => {
   const mockOnExtractionComplete = jest.fn();
+
+  const renderWithProvider = (component: React.ReactElement) => {
+    return render(<ExtractionProvider>{component}</ExtractionProvider>);
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -35,14 +52,14 @@ describe("ExtractionForm", () => {
   });
 
   it("should render the form with default values", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     expect(screen.getByPlaceholderText(/search google maps/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /start extraction/i })).toBeInTheDocument();
   });
 
   it("should show error when submitting without keyword", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const form = screen.getByRole("button", { name: /start extraction/i }).closest("form");
     fireEvent.submit(form!);
@@ -51,7 +68,7 @@ describe("ExtractionForm", () => {
   });
 
   it("should update keyword input value", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "restaurants in NYC" } });
@@ -60,7 +77,7 @@ describe("ExtractionForm", () => {
   });
 
   it("should toggle advanced options", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const advancedButton = screen.getByRole("button", { name: /show advanced options/i });
 
@@ -77,7 +94,7 @@ describe("ExtractionForm", () => {
   });
 
   it("should toggle checkboxes in advanced options", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     // Show advanced options
     fireEvent.click(screen.getByRole("button", { name: /show advanced options/i }));
@@ -89,22 +106,28 @@ describe("ExtractionForm", () => {
     const skipWithoutWebsite = screen.getByLabelText(
       /skip entries without website/i
     ) as HTMLInputElement;
+    const skipAlreadyExtracted = screen.getByLabelText(
+      /skip already extracted places/i
+    ) as HTMLInputElement;
 
     // Check default values
     expect(skipDuplicates.checked).toBe(true);
     expect(skipWithoutPhone.checked).toBe(true);
     expect(skipWithoutWebsite.checked).toBe(false);
+    expect(skipAlreadyExtracted.checked).toBe(false);
 
     // Toggle checkboxes
     fireEvent.click(skipDuplicates);
     fireEvent.click(skipWithoutWebsite);
+    fireEvent.click(skipAlreadyExtracted);
 
     expect(skipDuplicates.checked).toBe(false);
     expect(skipWithoutWebsite.checked).toBe(true);
+    expect(skipAlreadyExtracted.checked).toBe(true);
   });
 
   it("should update max results slider", () => {
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     // Show advanced options
     fireEvent.click(screen.getByRole("button", { name: /show advanced options/i }));
@@ -129,7 +152,7 @@ describe("ExtractionForm", () => {
       },
     });
 
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
@@ -143,20 +166,13 @@ describe("ExtractionForm", () => {
         skipDuplicates: true,
         skipWithoutPhone: true,
         skipWithoutWebsite: false,
+        skipAlreadyExtracted: false,
         maxResults: 50,
       });
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("Extraction started! Processing in background...");
-    });
-
-    // Advance timer to trigger polling
-    jest.advanceTimersByTime(5000);
-
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("Extraction completed! Found 25 results.");
-      expect(mockOnExtractionComplete).toHaveBeenCalled();
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Extraction started!"));
     });
   });
 
@@ -169,7 +185,7 @@ describe("ExtractionForm", () => {
       },
     });
 
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
@@ -194,7 +210,7 @@ describe("ExtractionForm", () => {
       },
     });
 
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
@@ -228,7 +244,7 @@ describe("ExtractionForm", () => {
 
     (extractionAPI.cancelExtraction as jest.Mock).mockResolvedValue({});
 
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
@@ -260,19 +276,12 @@ describe("ExtractionForm", () => {
     expect(toast.success).toHaveBeenCalledWith("Extraction cancelled");
   });
 
-  it("should display logs when available", async () => {
+  it("should display progress information when available", async () => {
     (extractionAPI.startExtraction as jest.Mock).mockResolvedValue({
       data: { id: "extraction-123" },
     });
 
-    (extractionAPI.getExtraction as jest.Mock).mockResolvedValue({
-      data: {
-        status: "processing",
-        logs: ["Starting browser..."],
-      },
-    });
-
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i);
     const submitButton = screen.getByRole("button", { name: /start extraction/i });
@@ -280,11 +289,8 @@ describe("ExtractionForm", () => {
     fireEvent.change(input, { target: { value: "test" } });
     fireEvent.click(submitButton);
 
-    // Advance timer to trigger polling
-    jest.advanceTimersByTime(5000);
-
     await waitFor(() => {
-      expect(screen.getByText("Starting browser...")).toBeInTheDocument();
+      expect(screen.getByText(/starting extraction/i)).toBeInTheDocument();
     });
   });
 
@@ -300,7 +306,7 @@ describe("ExtractionForm", () => {
       },
     });
 
-    render(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
+    renderWithProvider(<ExtractionForm onExtractionComplete={mockOnExtractionComplete} />);
 
     const input = screen.getByPlaceholderText(/search google maps/i) as HTMLInputElement;
     const submitButton = screen.getByRole("button", { name: /start extraction/i });

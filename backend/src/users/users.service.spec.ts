@@ -1,16 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from './schemas/user.schema';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 describe('UsersService', () => {
   let service: UsersService;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockUserModel: any;
 
   const mockUser = {
     _id: 'user-id-123',
     email: 'test@example.com',
     name: 'Test User',
+    phone: '+1234567890',
+    profileImage: '/uploads/profile-images/profile-123.jpg',
     password: 'hashed-password',
     dailyQuota: 100,
     usedQuotaToday: 10,
@@ -238,6 +243,116 @@ describe('UsersService', () => {
       const result = await service.getRemainingQuota('user-id-123');
 
       expect(result).toBe(0);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should update user profile successfully with all fields', async () => {
+      const updateDto: UpdateProfileDto = {
+        name: 'Updated Name',
+        phone: '+9876543210',
+        profileImage: '/uploads/profile-images/profile-456.jpg',
+      };
+
+      const saveSpy = jest.fn().mockResolvedValue({
+        ...mockUser,
+        ...updateDto,
+      });
+
+      const user = {
+        ...mockUser,
+        save: saveSpy,
+      };
+
+      mockUserModel.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-id-123', updateDto);
+
+      expect(user.name).toBe(updateDto.name);
+      expect(user.phone).toBe(updateDto.phone);
+      expect(user.profileImage).toBe(updateDto.profileImage);
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should update only name when only name is provided', async () => {
+      const updateDto: UpdateProfileDto = {
+        name: 'Updated Name Only',
+      };
+
+      const saveSpy = jest.fn().mockResolvedValue({
+        ...mockUser,
+        name: updateDto.name,
+      });
+
+      const user = {
+        ...mockUser,
+        save: saveSpy,
+      };
+
+      mockUserModel.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-id-123', updateDto);
+
+      expect(user.name).toBe(updateDto.name);
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should update only phone when only phone is provided', async () => {
+      const updateDto: UpdateProfileDto = {
+        phone: '+9999999999',
+      };
+
+      const saveSpy = jest.fn().mockResolvedValue({
+        ...mockUser,
+        phone: updateDto.phone,
+      });
+
+      const user = {
+        ...mockUser,
+        save: saveSpy,
+      };
+
+      mockUserModel.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-id-123', updateDto);
+
+      expect(user.phone).toBe(updateDto.phone);
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should update only profileImage when only profileImage is provided', async () => {
+      const updateDto: UpdateProfileDto = {
+        profileImage: '/uploads/profile-images/new-profile.jpg',
+      };
+
+      const saveSpy = jest.fn().mockResolvedValue({
+        ...mockUser,
+        profileImage: updateDto.profileImage,
+      });
+
+      const user = {
+        ...mockUser,
+        save: saveSpy,
+      };
+
+      mockUserModel.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-id-123', updateDto);
+
+      expect(user.profileImage).toBe(updateDto.profileImage);
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      const updateDto: UpdateProfileDto = {
+        name: 'Updated Name',
+      };
+
+      mockUserModel.findById.mockResolvedValue(null);
+
+      await expect(service.updateProfile('nonexistent-id', updateDto)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

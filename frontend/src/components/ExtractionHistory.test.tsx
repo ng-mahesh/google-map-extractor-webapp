@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ExtractionHistory from "./ExtractionHistory";
 import { extractionAPI } from "@/lib/api";
 import type { Extraction } from "@/lib/api";
+import { ExtractionProvider } from "@/contexts/ExtractionContext";
 
 // Mock the API module
 jest.mock("@/lib/api", () => ({
@@ -23,6 +24,17 @@ jest.mock("react-hot-toast", () => ({
 // Mock date-fns
 jest.mock("date-fns", () => ({
   format: jest.fn(() => "2024-01-01 10:00"),
+}));
+
+// Mock socket.io-client
+jest.mock("socket.io-client", () => ({
+  io: jest.fn(() => ({
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+    disconnect: jest.fn(),
+    removeAllListeners: jest.fn(),
+  })),
 }));
 
 describe("ExtractionHistory", () => {
@@ -86,7 +98,11 @@ describe("ExtractionHistory", () => {
   });
 
   it("should render extraction list", async () => {
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("restaurants")).toBeInTheDocument();
@@ -98,7 +114,11 @@ describe("ExtractionHistory", () => {
   it("should show empty state when no extractions", async () => {
     (extractionAPI.getHistory as jest.Mock).mockResolvedValue({ data: [] });
 
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("No extraction history yet")).toBeInTheDocument();
@@ -106,7 +126,11 @@ describe("ExtractionHistory", () => {
   });
 
   it("should display extraction status badges correctly", async () => {
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Completed")).toBeInTheDocument();
@@ -121,7 +145,11 @@ describe("ExtractionHistory", () => {
       data: mockExtraction,
     });
 
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     const viewButton = await screen.findByText("View");
     fireEvent.click(viewButton);
@@ -133,7 +161,11 @@ describe("ExtractionHistory", () => {
   });
 
   it("should show results count for completed extractions", async () => {
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("50")).toBeInTheDocument();
@@ -141,7 +173,11 @@ describe("ExtractionHistory", () => {
   });
 
   it("should show error message for failed extractions", async () => {
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Network error")).toBeInTheDocument();
@@ -153,7 +189,11 @@ describe("ExtractionHistory", () => {
       () => new Promise(() => {}) // Never resolves
     );
 
-    render(<ExtractionHistory onViewResults={mockOnViewResults} />);
+    render(
+      <ExtractionProvider>
+        <ExtractionHistory onViewResults={mockOnViewResults} />
+      </ExtractionProvider>
+    );
 
     expect(screen.getByText("Loading history...")).toBeInTheDocument();
   });

@@ -54,3 +54,7 @@ backend/debug/
 
 # Checkpoints
 checkpoints/
+
+# Uploads
+uploads/*
+!uploads/**/.gitkeep

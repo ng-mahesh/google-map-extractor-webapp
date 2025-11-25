@@ -29,6 +29,10 @@ export class StartExtractionDto {
   @IsOptional()
   skipWithoutWebsite?: boolean = false;
 
+  @IsBoolean()
+  @IsOptional()
+  skipAlreadyExtracted?: boolean = false;
+
   @IsNumber()
   @IsOptional()
   @Min(1)

@@ -23,6 +23,13 @@ export interface ExtractedPlace {
   openingHours?: string[];
   isOpen?: boolean;
   placeId?: string;
+  description?: string;
+  reviewUrl?: string;
+  photos?: string[];
+  price?: string;
+  featuredImage?: string;
+  cid?: string;
+  kgmid?: string;
 }
 
 @Schema({ timestamps: true })
@@ -48,6 +55,9 @@ export class Extraction {
   @Prop({ default: 0 })
   withoutPhoneSkipped: number;
 
+  @Prop({ default: 0 })
+  alreadyExistsSkipped: number;
+
   @Prop({ default: true })
   skipDuplicates: boolean;
 
@@ -56,6 +66,9 @@ export class Extraction {
 
   @Prop({ default: false })
   skipWithoutWebsite: boolean;
+
+  @Prop({ default: false })
+  skipAlreadyExtracted: boolean;
 
   @Prop({ default: 0 })
   withoutWebsiteSkipped: number;

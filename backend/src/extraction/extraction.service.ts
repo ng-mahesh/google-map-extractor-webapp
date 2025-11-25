@@ -50,6 +50,8 @@ export class ExtractionService {
       status: 'processing',
       skipDuplicates: dto.skipDuplicates,
       skipWithoutPhone: dto.skipWithoutPhone,
+      skipWithoutWebsite: dto.skipWithoutWebsite,
+      skipAlreadyExtracted: dto.skipAlreadyExtracted,
       startedAt: new Date(),
     });
 
@@ -68,12 +70,29 @@ export class ExtractionService {
 
   private async performExtraction(extractionId: string, dto: StartExtractionDto) {
     try {
+      // Get extraction document to fetch userId
+      const extraction = await this.extractionModel.findById(extractionId);
+      if (!extraction) {
+        throw new Error('Extraction not found');
+      }
+
       // Check for existing checkpoint
       const existingCheckpoint = await this.loadCheckpoint(extractionId);
 
       if (existingCheckpoint) {
         this.logger.log(
           `Resuming extraction ${extractionId} from checkpoint at index ${existingCheckpoint.lastProcessedIndex}`,
+        );
+      }
+
+      // Fetch previously extracted places if skipAlreadyExtracted is enabled
+      const previousPlaces = dto.skipAlreadyExtracted
+        ? await this.getPreviouslyExtractedPlaces(extraction.userId.toString(), dto.keyword)
+        : [];
+
+      if (dto.skipAlreadyExtracted && previousPlaces.length > 0) {
+        this.logger.log(
+          `Found ${previousPlaces.length} previously extracted places for keyword: ${dto.keyword}`,
         );
       }
 
@@ -118,6 +137,7 @@ export class ExtractionService {
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped,
+        alreadyExistsSkipped,
         failedPlaces,
       } = await this.performanceMonitor.measureAsync(
         `extraction-${extractionId}`,
@@ -126,6 +146,8 @@ export class ExtractionService {
             skipDuplicates: dto.skipDuplicates,
             skipWithoutPhone: dto.skipWithoutPhone,
             skipWithoutWebsite: dto.skipWithoutWebsite,
+            skipAlreadyExtracted: dto.skipAlreadyExtracted,
+            previousPlaces: previousPlaces,
             maxResults: dto.maxResults,
             onLog: addLog,
             resumeFromCheckpoint: !!existingCheckpoint,
@@ -144,6 +166,7 @@ export class ExtractionService {
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped: withoutWebsiteSkipped || 0,
+        alreadyExistsSkipped: alreadyExistsSkipped || 0,
         failedPlaces: failedPlaces || 0,
         completedAt: new Date(),
       });
@@ -233,14 +256,37 @@ export class ExtractionService {
       throw new BadRequestException('No results to export');
     }
 
+    // Helper function to clean text
+    const cleanText = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/·/g, '•') // Replace middle dot with bullet
+        .replace(/□/g, '') // Remove empty box characters
+        .replace(/[\u0000-\u001F]/g, '') // Remove control characters
+        .replace(/\uFFFD/g, ''); // Remove replacement characters
+    };
+
     // Define CSV fields
     const fields = [
-      { label: 'Category', value: 'category' },
-      { label: 'Name', value: 'name' },
-      { label: 'Address', value: 'address' },
-      { label: 'Phone', value: 'phone' },
-      { label: 'Website', value: 'website' },
+      { label: 'Category', value: (row) => cleanText(row.category) },
+      { label: 'Name', value: (row) => cleanText(row.name) },
+      { label: 'Address', value: (row) => cleanText(row.address) },
+      { label: 'Phone', value: (row) => cleanText(row.phone) },
+      { label: 'Email', value: (row) => cleanText(row.email) },
+      { label: 'Website', value: (row) => cleanText(row.website) },
       { label: 'Rating', value: 'rating' },
+      { label: 'Review Count', value: 'reviewsCount' },
+      { label: 'Description', value: (row) => cleanText(row.description) },
+      { label: 'Price', value: (row) => cleanText(row.price) },
+      {
+        label: 'Opening Hours',
+        value: (row) => row.openingHours?.map((h) => cleanText(h)).join('; ') || '',
+      },
+      { label: 'Is Open', value: (row) => (row.isOpen ? 'Yes' : 'No') },
+      { label: 'Review URL', value: 'reviewUrl' },
+      { label: 'Place ID', value: 'placeId' },
+      { label: 'CID', value: 'cid' },
+      { label: 'KGMID', value: 'kgmid' },
     ];
 
     const json2csvParser = new Parser({ fields });
@@ -261,6 +307,36 @@ export class ExtractionService {
 
     // Also delete checkpoint if it exists
     await this.deleteCheckpoint(extractionId);
+  }
+
+  /**
+   * Fetch previously extracted places for the same keyword
+   */
+  async getPreviouslyExtractedPlaces(userId: string, keyword: string): Promise<any[]> {
+    try {
+      const previousExtractions = await this.extractionModel
+        .find({
+          userId,
+          keyword: keyword.trim(),
+          status: 'completed',
+        })
+        .select('results')
+        .exec();
+
+      // Flatten all results from previous extractions into a single array
+      const allPreviousPlaces = previousExtractions.reduce((acc, extraction) => {
+        return acc.concat(extraction.results || []);
+      }, []);
+
+      this.logger.debug(
+        `Found ${allPreviousPlaces.length} previously extracted places for keyword: ${keyword}`,
+      );
+
+      return allPreviousPlaces;
+    } catch (error) {
+      this.logger.error(`Failed to fetch previously extracted places: ${error.message}`);
+      return [];
+    }
   }
 
   /**

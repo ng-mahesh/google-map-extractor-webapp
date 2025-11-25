@@ -100,11 +100,18 @@ export interface LoginData {
   password: string;
 }
 
+export interface UpdateProfileData {
+  name?: string;
+  phone?: string;
+  profileImage?: string;
+}
+
 export interface StartExtractionData {
   keyword: string;
   skipDuplicates?: boolean;
   skipWithoutPhone?: boolean;
   skipWithoutWebsite?: boolean;
+  skipAlreadyExtracted?: boolean;
   maxResults?: number;
 }
 
@@ -128,6 +135,13 @@ export interface ExtractedPlace {
   openingHours?: string[];
   isOpen?: boolean;
   placeId?: string;
+  description?: string;
+  reviewUrl?: string;
+  photos?: string[];
+  price?: string;
+  featuredImage?: string;
+  cid?: string;
+  kgmid?: string;
 }
 
 export interface Extraction {
@@ -140,9 +154,11 @@ export interface Extraction {
   duplicatesSkipped: number;
   withoutPhoneSkipped: number;
   withoutWebsiteSkipped?: number;
+  alreadyExistsSkipped?: number;
   skipDuplicates: boolean;
   skipWithoutPhone: boolean;
   skipWithoutWebsite?: boolean;
+  skipAlreadyExtracted?: boolean;
   logs?: string[];
   errorMessage?: string;
   startedAt: string;
@@ -158,6 +174,20 @@ export const authAPI = {
   logout: (refreshToken: string) => apiClient.post("/auth/logout", { refreshToken }),
   refresh: (refreshToken: string) => apiClient.post("/auth/refresh", { refreshToken }),
   getProfile: () => apiClient.get("/auth/profile"),
+  updateProfile: (data: UpdateProfileData) => apiClient.put("/auth/profile", data),
+};
+
+// Upload API
+export const uploadAPI = {
+  uploadProfileImage: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post("/upload/profile-image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };
 
 // Extraction API

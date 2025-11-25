@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Extraction, ExtractedPlace, extractionAPI } from "@/lib/api";
 import toast from "react-hot-toast";
-import * as XLSX from "xlsx";
 import {
   Download,
   FileSpreadsheet,
@@ -31,6 +30,8 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
   const [websiteFilter, setWebsiteFilter] = useState<"all" | "yes" | "no">("all");
   const [sortBy, setSortBy] = useState<"none" | "rating-high" | "rating-low">("none");
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<ExtractedPlace | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Apply filters and sorting
   let filteredResults = extraction.results.filter((place) => {
@@ -124,19 +125,55 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
     }
   };
 
-  // Helper function to clean data by removing prefixes
+  // Helper function to clean data by removing prefixes and invalid characters
   const cleanData = (value: string | number): string => {
     if (typeof value !== "string") return String(value);
 
     // Remove common prefixes like "Address:", "Phone:", etc.
-    const cleaned = value
+    let cleaned = value
       .replace(/^Address:\s*/i, "")
       .replace(/^Phone:\s*/i, "")
       .replace(/^Email:\s*/i, "")
       .replace(/^Website:\s*/i, "")
       .trim();
 
+    // Replace invalid characters with proper ones
+    cleaned = cleaned
+      .replace(/·/g, "•") // Replace middle dot with bullet
+      .replace(/□/g, "") // Remove empty box characters
+      .replace(/☐/g, "") // Remove checkbox characters
+      .replace(/[\u0000-\u001F]/g, "") // Remove control characters
+      .replace(/\uFFFD/g, ""); // Remove replacement characters
+
     return cleaned;
+  };
+
+  // Helper function to format description with tick icons
+  const formatDescription = (description: string): JSX.Element => {
+    if (!description) return <></>;
+
+    // Clean the description first
+    let cleaned = cleanData(description);
+
+    // Remove all special characters except spaces, letters, numbers, and common punctuation
+    cleaned = cleaned.replace(/[^\w\s.,!?'-]/g, "");
+
+    // Split by bullet points, middle dots, or multiple spaces
+    const items = cleaned
+      .split(/[•·]\s*|\s{2,}/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {items.map((item, index) => (
+          <span key={index} className="inline-flex items-center gap-1 text-sm text-gray-600">
+            <span className="text-green-600">✓</span>
+            {item}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   const handleExportExcel = async () => {
@@ -153,8 +190,18 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
         Category: cleanData(place.category || ""),
         Address: cleanData(place.address || ""),
         Phone: cleanData(place.phone || ""),
+        Email: cleanData(place.email || ""),
         Website: cleanData(place.website || ""),
         Rating: place.rating || "",
+        "Review Count": place.reviewsCount || "",
+        Description: cleanData(place.description || ""),
+        Price: cleanData(place.price || ""),
+        "Opening Hours": place.openingHours?.join("; ") || "",
+        "Is Open": place.isOpen ? "Yes" : "No",
+        "Review URL": place.reviewUrl || "",
+        "Place ID": place.placeId || "",
+        CID: place.cid || "",
+        KGMID: place.kgmid || "",
       }));
 
       // Create workbook and worksheet
@@ -169,8 +216,18 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
         { wch: 20 }, // Category
         { wch: 40 }, // Address
         { wch: 15 }, // Phone
+        { wch: 25 }, // Email
         { wch: 35 }, // Website
         { wch: 8 }, // Rating
+        { wch: 12 }, // Review Count
+        { wch: 50 }, // Description
+        { wch: 10 }, // Price
+        { wch: 50 }, // Opening Hours
+        { wch: 8 }, // Is Open
+        { wch: 50 }, // Review URL
+        { wch: 30 }, // Place ID
+        { wch: 20 }, // CID
+        { wch: 20 }, // KGMID
       ];
 
       // Generate Excel file
@@ -431,121 +488,98 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
         </div>
       ) : (
         <>
-          {/* Results List */}
+          {/* Results List - Clean Design */}
           <div className="space-y-3">
             {paginatedResults.map((place, index) => (
               <div
                 key={startIndex + index}
-                className="bg-white border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150 p-5"
+                className="bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-150 p-5 cursor-pointer"
+                onClick={() => {
+                  setSelectedPlace(place);
+                  setShowDetailModal(true);
+                }}
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* Left Content */}
                   <div className="flex-1 min-w-0">
                     {/* Business Name */}
-                    <div className="mb-1">
-                      <a
-                        href={getGoogleMapsUrl(place)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-lg font-medium text-google-blue hover:underline"
-                      >
-                        {place.name || "Business Name"}
-                      </a>
-                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1 hover:text-google-blue">
+                      {place.name || "Business Name"}
+                    </h3>
 
-                    {/* Rating & Category on same line */}
-                    <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
+                    {/* Rating & Reviews */}
+                    <div className="flex items-center gap-2 text-sm mb-2">
                       {place.rating > 0 && (
                         <>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium text-gray-900">
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-gray-900">
                               {place.rating.toFixed(1)}
                             </span>
-                            {/* 5 Star Rating Display */}
-                            <div className="flex items-center gap-0.5">
-                              {[1, 2, 3, 4, 5].map((star) => {
-                                const fillPercentage = Math.min(
-                                  Math.max((place.rating - star + 1) * 100, 0),
-                                  100
-                                );
-                                return (
-                                  <div key={star} className="relative w-3 h-3">
-                                    {/* Empty star background */}
-                                    <Star className="w-3 h-3 text-gray-300 absolute top-0 left-0" />
-                                    {/* Filled star with clip */}
-                                    <div
-                                      className="absolute top-0 left-0 overflow-hidden"
-                                      style={{ width: `${fillPercentage}%` }}
-                                    >
-                                      <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                            <div className="flex items-center">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-4 h-4 ${i < Math.floor(place.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                                />
+                              ))}
                             </div>
-                            {place.reviewsCount > 0 && (
-                              <span className="text-gray-600">
-                                ({place.reviewsCount.toLocaleString()})
-                              </span>
-                            )}
                           </div>
+                          {place.reviewsCount > 0 && (
+                            <span className="text-gray-600">
+                              ({place.reviewsCount.toLocaleString()})
+                            </span>
+                          )}
                           <span className="text-gray-400">·</span>
                         </>
                       )}
-                      <span className="text-gray-600">{place.category || "Category"}</span>
+                      <span className="text-gray-600">{place.category}</span>
+                      {place.price && (
+                        <>
+                          <span className="text-gray-400">·</span>
+                          <span className="text-gray-600 font-medium">{place.price}</span>
+                        </>
+                      )}
                     </div>
 
-                    {/* Address with Icon */}
+                    {/* Description */}
+                    {place.description && (
+                      <div className="mb-2">{formatDescription(place.description)}</div>
+                    )}
+
+                    {/* Address */}
                     {place.address && (
-                      <div className="flex items-start gap-2 text-sm text-gray-700 mb-3">
+                      <div className="flex items-start gap-2 text-sm text-gray-700 mb-2">
                         <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                        <span>{cleanData(place.address)}</span>
+                        <span className="line-clamp-1">{cleanData(place.address)}</span>
                       </div>
                     )}
 
-                    {/* Contact Info Row with Icons */}
-                    <div className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap items-center gap-2 text-sm mt-3">
                       {place.phone && (
                         <a
                           href={`tel:${place.phone}`}
-                          className="text-gray-700 hover:text-google-blue flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
                         >
-                          <Phone className="w-4 h-4 text-gray-500" />
-                          <span>{cleanData(place.phone)}</span>
+                          <Phone className="w-3.5 h-3.5" />
+                          <span className="text-xs font-medium">Call</span>
                         </a>
                       )}
-
-                      {place.website && (
-                        <a
-                          href={place.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-google-blue hover:bg-blue-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors"
-                        >
-                          <Globe className="w-4 h-4" />
-                          <span>Website</span>
-                        </a>
-                      )}
-
                       <a
                         href={getGoogleMapsUrl(place)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-google-blue hover:bg-blue-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-white bg-google-blue hover:bg-blue-700 rounded-full transition-colors"
                       >
-                        <Navigation className="w-4 h-4" />
-                        <span>Directions</span>
+                        <Navigation className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">Get Directions</span>
                       </a>
+                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-google-blue rounded-full transition-colors">
+                        <span className="text-xs font-medium">View Details</span>
+                      </button>
                     </div>
-
-                    {/* Additional Services Info */}
-                    {place.category && (
-                      <div className="mt-3">
-                        <span className="text-xs text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
-                          On-site services
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -608,6 +642,253 @@ export default function ResultsTable({ extraction }: ResultsTableProps) {
             </div>
           )}
         </>
+      )}
+
+      {/* Detail Modal */}
+      {showDetailModal && selectedPlace && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowDetailModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b px-6 py-4 z-10">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-3">{selectedPlace.name}</h2>
+                  {/* Action Buttons at Top */}
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={getGoogleMapsUrl(selectedPlace)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-white bg-google-blue hover:bg-blue-700 rounded-full transition-colors font-medium text-sm"
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Get Directions
+                    </a>
+                    {selectedPlace.phone && (
+                      <a
+                        href={`tel:${selectedPlace.phone}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-full transition-colors font-medium text-sm"
+                      >
+                        <Phone className="w-4 h-4" />
+                        Call
+                      </a>
+                    )}
+                    {selectedPlace.website && (
+                      <a
+                        href={selectedPlace.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-full transition-colors font-medium text-sm"
+                      >
+                        <Globe className="w-4 h-4" />
+                        Website
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-3xl leading-none flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* Rating & Category */}
+              <div className="flex items-center gap-3 mb-4">
+                {selectedPlace.rating > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-bold">{selectedPlace.rating.toFixed(1)}</span>
+                    <div className="flex items-center">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-6 h-6 ${i < Math.floor(selectedPlace.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                        />
+                      ))}
+                    </div>
+                    {selectedPlace.reviewsCount > 0 && (
+                      <span className="text-gray-600 text-lg">
+                        ({selectedPlace.reviewsCount.toLocaleString()} reviews)
+                      </span>
+                    )}
+                  </div>
+                )}
+                {selectedPlace.price && (
+                  <>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-lg font-medium text-gray-700">{selectedPlace.price}</span>
+                  </>
+                )}
+              </div>
+
+              <div className="text-gray-600 mb-6">{selectedPlace.category}</div>
+
+              {/* Description */}
+              {selectedPlace.description && (
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">About</h3>
+                  {formatDescription(selectedPlace.description)}
+                </div>
+              )}
+
+              {/* Contact Information */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Contact Information</h3>
+                <div className="space-y-2">
+                  {selectedPlace.address && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-700">{cleanData(selectedPlace.address)}</span>
+                    </div>
+                  )}
+                  {selectedPlace.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-5 h-5 text-gray-400" />
+                      <a
+                        href={`tel:${selectedPlace.phone}`}
+                        className="text-google-blue hover:underline"
+                      >
+                        {cleanData(selectedPlace.phone)}
+                      </a>
+                    </div>
+                  )}
+                  {selectedPlace.email && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📧</span>
+                      <a
+                        href={`mailto:${selectedPlace.email}`}
+                        className="text-google-blue hover:underline"
+                      >
+                        {cleanData(selectedPlace.email)}
+                      </a>
+                    </div>
+                  )}
+                  {selectedPlace.website && (
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-5 h-5 text-gray-400" />
+                      <a
+                        href={selectedPlace.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-google-blue hover:underline"
+                      >
+                        Visit Website
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Opening Hours */}
+              {selectedPlace.openingHours && selectedPlace.openingHours.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3">Hours</h3>
+                  <div
+                    className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${selectedPlace.isOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                  >
+                    {selectedPlace.isOpen ? "● Open" : "● Closed"}
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    {selectedPlace.openingHours.map((hours, idx) => (
+                      <div key={idx} className="text-gray-700">
+                        {hours}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reviews */}
+              {selectedPlace.reviews && selectedPlace.reviews.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-900">
+                      Reviews ({selectedPlace.reviews.length})
+                    </h3>
+                    {selectedPlace.reviewUrl && (
+                      <a
+                        href={selectedPlace.reviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-google-blue hover:underline font-medium"
+                      >
+                        See all reviews
+                      </a>
+                    )}
+                  </div>
+                  <div className="space-y-4">
+                    {/* Remove duplicates based on author and text */}
+                    {Array.from(
+                      new Map(
+                        selectedPlace.reviews.map((review) => [
+                          `${review.author}-${review.text}`,
+                          review,
+                        ])
+                      ).values()
+                    )
+                      .slice(0, 5)
+                      .map((review, idx) => (
+                        <div key={idx} className="border-b pb-4 last:border-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="font-medium text-gray-900">
+                              {review.author.replace("Photo of ", "")}
+                            </span>
+                            <div className="flex items-center">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-4 h-4 ${i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-sm text-gray-500">{review.date}</span>
+                          </div>
+                          <p className="text-gray-700">{review.text}</p>
+                        </div>
+                      ))}
+                  </div>
+                  {selectedPlace.reviewUrl && selectedPlace.reviews.length > 5 && (
+                    <div className="mt-4">
+                      <a
+                        href={selectedPlace.reviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-full transition-colors font-medium text-sm text-gray-700"
+                      >
+                        More reviews
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Additional Actions */}
+              {selectedPlace.reviewUrl && (
+                <div className="pt-6 border-t">
+                  <a
+                    href={selectedPlace.reviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-full transition-colors font-medium text-sm"
+                  >
+                    <Star className="w-4 h-4" />
+                    Write a review
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

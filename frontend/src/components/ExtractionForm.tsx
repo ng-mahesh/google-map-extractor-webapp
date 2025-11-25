@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { extractionAPI } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Search, Settings, X, Loader, MapPin } from "lucide-react";
+import { useExtraction } from "@/contexts/ExtractionContext";
 
 interface ExtractionFormProps {
   onExtractionComplete: () => void;
@@ -14,19 +15,40 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [skipWithoutPhone, setSkipWithoutPhone] = useState(true);
   const [skipWithoutWebsite, setSkipWithoutWebsite] = useState(false);
+  const [skipAlreadyExtracted, setSkipAlreadyExtracted] = useState(false);
   const [maxResults, setMaxResults] = useState(50);
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentExtractionId, setCurrentExtractionId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const [progressMessage, setProgressMessage] = useState<string>("");
+  const [progressPercentage, setProgressPercentage] = useState<number>(0);
+  const { activeExtractions, startMonitoring, stopMonitoring } = useExtraction();
 
-  // Auto-scroll logs to bottom when they update
+  // Monitor active extraction progress
   useEffect(() => {
-    if (logsEndRef.current && typeof logsEndRef.current.scrollIntoView === "function") {
-      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (currentExtractionId && activeExtractions.has(currentExtractionId)) {
+      const progress = activeExtractions.get(currentExtractionId);
+      if (progress) {
+        setProgressMessage(progress.message || "Processing...");
+        setProgressPercentage(progress.percentage || 0);
+
+        // Check if extraction completed
+        if (progress.status === "completed") {
+          setLoading(false);
+          setKeyword("");
+          setCurrentExtractionId(null);
+          setProgressMessage("");
+          setProgressPercentage(0);
+          onExtractionComplete();
+        } else if (progress.status === "failed") {
+          setLoading(false);
+          setCurrentExtractionId(null);
+          setProgressMessage("");
+          setProgressPercentage(0);
+        }
+      }
     }
-  }, [logs]);
+  }, [activeExtractions, currentExtractionId, onExtractionComplete]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +59,8 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
     }
 
     setLoading(true);
-    setLogs([]);
+    setProgressMessage("Starting extraction...");
+    setProgressPercentage(0);
 
     try {
       const response = await extractionAPI.startExtraction({
@@ -45,14 +68,15 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
         skipDuplicates,
         skipWithoutPhone,
         skipWithoutWebsite,
+        skipAlreadyExtracted,
         maxResults,
       });
 
-      toast.success("Extraction started! Processing in background...");
+      toast.success("Extraction started! You can navigate away - we'll notify you when it's done.");
       setCurrentExtractionId(response.data.id);
 
-      // Poll for completion with logs
-      pollExtractionStatus(response.data.id);
+      // Start monitoring via WebSocket
+      startMonitoring(response.data.id);
     } catch (err: unknown) {
       let message = "Failed to start extraction";
       interface AxiosError {
@@ -70,6 +94,8 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
       }
       toast.error(message);
       setLoading(false);
+      setProgressMessage("");
+      setProgressPercentage(0);
     }
   };
 
@@ -78,62 +104,15 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
 
     try {
       await extractionAPI.cancelExtraction(currentExtractionId);
+      stopMonitoring(currentExtractionId);
       toast.success("Extraction cancelled");
       setLoading(false);
       setCurrentExtractionId(null);
-      setLogs([]);
+      setProgressMessage("");
+      setProgressPercentage(0);
     } catch {
       toast.error("Failed to cancel extraction");
     }
-  };
-
-  const pollExtractionStatus = async (extractionId: string) => {
-    const maxAttempts = 120; // 10 minutes max
-    let attempts = 0;
-
-    const checkStatus = async () => {
-      try {
-        const response = await extractionAPI.getExtraction(extractionId);
-        const extraction = response.data;
-
-        // Update logs if available
-        if (extraction.logs && extraction.logs.length > 0) {
-          setLogs(extraction.logs);
-        }
-
-        if (extraction.status === "completed") {
-          toast.success(`Extraction completed! Found ${extraction.totalResults} results.`);
-          setLoading(false);
-          setKeyword("");
-          setCurrentExtractionId(null);
-          setLogs([]);
-          onExtractionComplete();
-        } else if (extraction.status === "failed") {
-          toast.error(`Extraction failed: ${extraction.errorMessage || "Unknown error"}`);
-          setLoading(false);
-          setCurrentExtractionId(null);
-        } else if (extraction.status === "cancelled") {
-          setLoading(false);
-          setCurrentExtractionId(null);
-          setLogs([]);
-        } else {
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 5000); // Check every 5 seconds
-          } else {
-            toast.error("Extraction is taking longer than expected. Please check history.");
-            setLoading(false);
-            setCurrentExtractionId(null);
-          }
-        }
-      } catch {
-        console.error("Error checking status");
-        setLoading(false);
-        setCurrentExtractionId(null);
-      }
-    };
-
-    checkStatus();
   };
 
   return (
@@ -291,6 +270,28 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
                 </div>
               </div>
 
+              <div className="flex items-start space-x-3">
+                <input
+                  id="skipAlreadyExtracted"
+                  type="checkbox"
+                  checked={skipAlreadyExtracted}
+                  onChange={(e) => setSkipAlreadyExtracted(e.target.checked)}
+                  className="mt-1 w-5 h-5 text-google-blue rounded focus:ring-google-blue"
+                  disabled={loading}
+                />
+                <div>
+                  <label
+                    htmlFor="skipAlreadyExtracted"
+                    className="text-sm font-medium text-gray-700 block"
+                  >
+                    Skip already extracted places
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Skip places that you already extracted with this keyword before
+                  </p>
+                </div>
+              </div>
+
               <div className="pt-4 border-t">
                 <label
                   htmlFor="maxResults"
@@ -321,36 +322,41 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
         </div>
       </form>
 
-      {/* Real-time Logs */}
-      {loading &&
-        logs.length > 0 &&
-        (() => {
-          // Filter out unwanted logs
-          const filteredLogs = logs.filter(
-            (log) =>
-              !log.includes("Launching browser") && !log.includes("Navigating to Google Maps")
-          );
+      {/* Real-time Progress */}
+      {loading && progressMessage && (
+        <div className="mt-8 max-w-3xl mx-auto bg-white rounded-2xl shadow-google p-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <Loader className="w-5 h-5 text-google-blue animate-spin" />
+            <h3 className="font-medium text-gray-800">Extraction Progress</h3>
+          </div>
 
-          // Only show if there are filtered logs
-          if (filteredLogs.length === 0) return null;
-
-          return (
-            <div className="mt-8 max-w-3xl mx-auto bg-white rounded-2xl shadow-google p-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Loader className="w-5 h-5 text-google-blue animate-spin" />
-                <h3 className="font-medium text-gray-800">Extraction Progress</h3>
+          {/* Progress Bar */}
+          {progressPercentage > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Progress</span>
+                <span>{progressPercentage}%</span>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 font-mono text-xs max-h-60 overflow-y-auto space-y-1">
-                {filteredLogs.map((log, index) => (
-                  <div key={index} className="text-gray-700 py-1">
-                    {log}
-                  </div>
-                ))}
-                <div ref={logsEndRef} />
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-google-blue h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progressPercentage}%` }}
+                />
               </div>
             </div>
-          );
-        })()}
+          )}
+
+          {/* Status Message */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <p className="text-sm text-gray-700">{progressMessage}</p>
+          </div>
+
+          {/* Info about navigation */}
+          <div className="mt-4 text-xs text-gray-500 text-center">
+            You can navigate to other pages - extraction will continue in the background
+          </div>
+        </div>
+      )}
 
       {/* Info Card */}
       <div className="mt-8 max-w-3xl mx-auto bg-blue-50 border border-blue-200 rounded-2xl p-5">

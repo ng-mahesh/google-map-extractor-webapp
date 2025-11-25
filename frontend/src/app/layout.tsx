@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { ExtractionProvider } from "@/contexts/ExtractionContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -16,8 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <ErrorBoundary>
-          {children}
-          <Toaster position="top-right" />
+          <ExtractionProvider>
+            {children}
+            <Toaster position="top-right" />
+          </ExtractionProvider>
         </ErrorBoundary>
       </body>
     </html>
