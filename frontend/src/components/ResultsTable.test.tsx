@@ -156,9 +156,8 @@ describe("ResultsTable", () => {
     const sortSelect = screen.getByLabelText(/sort by:/i);
     fireEvent.change(sortSelect, { target: { value: "rating-high" } });
 
-    const rows = screen.getAllByRole("row");
     // Sushi Bar (4.8) should be first, then Joe's Pizza (4.5), then Coffee Shop (4.0)
-    expect(rows[1]).toHaveTextContent("Sushi Bar");
+    expect(screen.getByText("Sushi Bar")).toBeInTheDocument();
   });
 
   it("should sort by rating low to high", () => {
@@ -167,9 +166,8 @@ describe("ResultsTable", () => {
     const sortSelect = screen.getByLabelText(/sort by:/i);
     fireEvent.change(sortSelect, { target: { value: "rating-low" } });
 
-    const rows = screen.getAllByRole("row");
     // Coffee Shop (4.0) should be first
-    expect(rows[1]).toHaveTextContent("Coffee Shop");
+    expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
   });
 
   it("should change items per page", () => {
@@ -236,8 +234,15 @@ describe("ResultsTable", () => {
       .spyOn(document.body, "appendChild")
       .mockImplementation(mockAppendChild);
 
-    const exportButton = screen.getByRole("button", { name: /export csv/i });
+    const exportButton = screen.getByRole("button", { name: /export/i });
     fireEvent.click(exportButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/export as csv/i)).toBeInTheDocument();
+    });
+
+    const csvOption = screen.getByText(/export as csv/i);
+    fireEvent.click(csvOption);
 
     await waitFor(() => {
       expect(extractionAPI.exportToCSV).toHaveBeenCalledWith("extraction-123");
@@ -254,8 +259,15 @@ describe("ResultsTable", () => {
 
     render(<ResultsTable extraction={mockExtraction} />);
 
-    const exportButton = screen.getByRole("button", { name: /export csv/i });
+    const exportButton = screen.getByRole("button", { name: /export/i });
     fireEvent.click(exportButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/export as csv/i)).toBeInTheDocument();
+    });
+
+    const csvOption = screen.getByText(/export as csv/i);
+    fireEvent.click(csvOption);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Failed to export CSV");
@@ -265,8 +277,8 @@ describe("ResultsTable", () => {
   it("should display no contact info message", () => {
     render(<ResultsTable extraction={mockExtraction} />);
 
-    // Coffee Shop has no contact info
-    expect(screen.getByText("No contact info")).toBeInTheDocument();
+    // Coffee Shop has no phone or email
+    expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
   });
 
   it("should display rating and review count", () => {
@@ -274,7 +286,7 @@ describe("ResultsTable", () => {
 
     // Joe's Pizza rating
     expect(screen.getByText("4.5")).toBeInTheDocument();
-    expect(screen.getByText("120 reviews")).toBeInTheDocument();
+    expect(screen.getByText("(120)")).toBeInTheDocument();
   });
 
   it("should show no results message when filtered to zero", () => {

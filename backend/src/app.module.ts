@@ -10,7 +10,7 @@ import { ExtractionModule } from './extraction/extraction.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 import { winstonConfig } from './common/logging/winston.config';
-import { PerformanceMonitor } from './common/logging/performance.monitor';
+import { LoggingModule } from './common/logging/logging.module';
 import { LoggingInterceptor } from './common/logging/logging.interceptor';
 import { SentryFilter } from './common/logging/sentry.filter';
 
@@ -24,6 +24,7 @@ import { SentryFilter } from './common/logging/sentry.filter';
 
     // Logging
     WinstonModule.forRoot(winstonConfig),
+    LoggingModule,
 
     // Database
     MongooseModule.forRootAsync({
@@ -65,7 +66,6 @@ import { SentryFilter } from './common/logging/sentry.filter';
       provide: APP_FILTER,
       useClass: SentryFilter,
     },
-    PerformanceMonitor,
   ],
 })
 export class AppModule {}

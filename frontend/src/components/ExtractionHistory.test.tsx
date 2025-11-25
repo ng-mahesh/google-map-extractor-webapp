@@ -123,10 +123,8 @@ describe("ExtractionHistory", () => {
 
     render(<ExtractionHistory onViewResults={mockOnViewResults} />);
 
-    await waitFor(() => {
-      const viewButton = screen.getByText("View Results");
-      fireEvent.click(viewButton);
-    });
+    const viewButton = await screen.findByText("View");
+    fireEvent.click(viewButton);
 
     await waitFor(() => {
       expect(extractionAPI.getExtraction).toHaveBeenCalledWith("1");
