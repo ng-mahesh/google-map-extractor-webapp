@@ -1,15 +1,6 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  Query,
-  Res,
-} from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ExtractionService } from './extraction.service';
 import { StartExtractionDto } from './dto/start-extraction.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -25,10 +16,8 @@ export class ExtractionController {
   ) {}
 
   @Post('start')
-  async startExtraction(
-    @CurrentUser() user: any,
-    @Body() dto: StartExtractionDto,
-  ) {
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute for starting extractions
+  async startExtraction(@CurrentUser() user: any, @Body() dto: StartExtractionDto) {
     const extraction = await this.extractionService.startExtraction(user.userId, dto);
     return {
       id: extraction._id,
@@ -39,15 +28,14 @@ export class ExtractionController {
   }
 
   @Get('history')
-  async getHistory(
-    @CurrentUser() user: any,
-    @Query('limit') limit?: string,
-  ) {
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for history
+  async getHistory(@CurrentUser() user: any, @Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit) : 20;
     return this.extractionService.getExtractionHistory(user.userId, limitNum);
   }
 
   @Get('quota')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for quota checks
   async getQuota(@CurrentUser() user: any) {
     const remainingQuota = await this.usersService.getRemainingQuota(user.userId);
     const userDetails = await this.usersService.findById(user.userId);
@@ -61,19 +49,13 @@ export class ExtractionController {
   }
 
   @Get(':id')
-  async getExtraction(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-  ) {
+  @SkipThrottle() // Skip throttling for status polling endpoint
+  async getExtraction(@CurrentUser() user: any, @Param('id') id: string) {
     return this.extractionService.getExtraction(id, user.userId);
   }
 
   @Get(':id/export')
-  async exportToCSV(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  async exportToCSV(@CurrentUser() user: any, @Param('id') id: string, @Res() res: Response) {
     const csv = await this.extractionService.exportToCSV(id, user.userId);
     const extraction = await this.extractionService.getExtraction(id, user.userId);
 
@@ -86,19 +68,13 @@ export class ExtractionController {
   }
 
   @Post(':id/cancel')
-  async cancelExtraction(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-  ) {
+  async cancelExtraction(@CurrentUser() user: any, @Param('id') id: string) {
     await this.extractionService.cancelExtraction(id, user.userId);
     return { message: 'Extraction cancelled successfully' };
   }
 
   @Delete(':id')
-  async deleteExtraction(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-  ) {
+  async deleteExtraction(@CurrentUser() user: any, @Param('id') id: string) {
     await this.extractionService.deleteExtraction(id, user.userId);
     return { message: 'Extraction deleted successfully' };
   }

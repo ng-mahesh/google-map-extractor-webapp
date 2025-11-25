@@ -57,11 +57,30 @@ export class Extraction {
   @Prop({ default: false })
   skipWithoutWebsite: boolean;
 
+  @Prop({ default: 0 })
+  withoutWebsiteSkipped: number;
+
   @Prop({ type: [String], default: [] })
   logs: string[];
 
   @Prop({ default: '' })
   errorMessage: string;
+
+  // Scraper reliability fields
+  @Prop({ default: 0 })
+  failedPlaces: number;
+
+  @Prop()
+  checkpointSavedAt: Date;
+
+  @Prop({ default: 0 })
+  lastCheckpointIndex: number;
+
+  @Prop({ default: '' })
+  debugArtifactsPath: string;
+
+  @Prop({ default: 0 })
+  retryAttempts: number;
 
   @Prop()
   startedAt: Date;

@@ -1,8 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExtractedPlace } from '../extraction/schemas/extraction.schema';
-
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+import { ExtractedPlace, Review } from '../extraction/schemas/extraction.schema';
+import { ExtractionOptions, CheckpointData } from './interfaces/checkpoint.interface';
+import { DebugService } from './debug/debug.service';
+import { SELECTORS } from './config/selectors.config';
+import {
+  findElement,
+  findElements,
+  extractText,
+  extractAttribute,
+  extractTextFromChild,
+  extractAttributeFromChild,
+  extractTextFromElement,
+  extractAttributeFromElement,
+} from './helpers/selector.helper';
+import { retryWithBackoff } from './helpers/retry.helper';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { Page, ElementHandle } from 'puppeteer';
 
 puppeteer.use(StealthPlugin());
 
@@ -10,20 +24,17 @@ puppeteer.use(StealthPlugin());
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
 
+  constructor(private readonly debugService: DebugService) {}
+
   async scrapeGoogleMaps(
     keyword: string,
-    options: {
-      skipDuplicates?: boolean;
-      skipWithoutPhone?: boolean;
-      skipWithoutWebsite?: boolean;
-      maxResults?: number;
-      onLog?: (message: string) => void;
-    } = {},
+    options: ExtractionOptions = {},
   ): Promise<{
     results: ExtractedPlace[];
     duplicatesSkipped: number;
     withoutPhoneSkipped: number;
     withoutWebsiteSkipped: number;
+    failedPlaces: number;
   }> {
     const {
       skipDuplicates = true,
@@ -31,10 +42,21 @@ export class ScraperService {
       skipWithoutWebsite = false,
       maxResults = 50,
       onLog = () => {},
+      resumeFromCheckpoint = false,
+      saveCheckpoints = false,
+      checkpointInterval = 10,
+      onCheckpoint,
+      existingCheckpoint,
+      extractionId,
     } = options;
 
     this.logger.log(`Starting scraping for keyword: ${keyword}`);
     onLog(`Starting extraction for: ${keyword}`);
+
+    // Initialize debug directory if needed
+    if (extractionId && this.debugService.isDebugMode()) {
+      await this.debugService.createDebugDirectory(extractionId);
+    }
 
     const browser = await puppeteer.launch({
       headless: process.env.HEADLESS_BROWSER !== 'false',
@@ -56,12 +78,37 @@ export class ScraperService {
 
       // Navigate to Google Maps
       onLog('Navigating to Google Maps...');
-      const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(keyword)}`;
-      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+      await retryWithBackoff(
+        async () => {
+          await page.goto(`https://www.google.com/maps/search/${encodeURIComponent(keyword)}`, {
+            waitUntil: 'networkidle2',
+            timeout: 60000,
+          });
+        },
+        { maxAttempts: 3 },
+      );
+
+      // Handle cookie consent if present
+      try {
+        const consentButton = await page.$('button[aria-label="Accept all"]');
+        if (consentButton) {
+          onLog('Accepting cookies...');
+          await consentButton.click();
+          await page.waitForNavigation({ waitUntil: 'networkidle0' });
+        }
+      } catch (e) {
+        // Ignore consent errors
+      }
 
       // Wait for results to load
       onLog('Waiting for results to load...');
-      await page.waitForSelector('div[role="feed"]', { timeout: 30000 });
+      const feedSelector = 'div[role="feed"]';
+      await retryWithBackoff(
+        async () => {
+          await page.waitForSelector(feedSelector, { timeout: 30000 });
+        },
+        { maxAttempts: 3 },
+      );
 
       // Scroll to load more results
       onLog('Loading more results...');
@@ -69,7 +116,18 @@ export class ScraperService {
 
       // Extract place data
       onLog(`Extracting data from places (max ${maxResults})...`);
-      const places = await this.extractPlaceData(page, maxResults, onLog);
+      const places = await this.extractPlaceData(
+        keyword,
+        page,
+        maxResults,
+        onLog,
+        resumeFromCheckpoint,
+        saveCheckpoints,
+        checkpointInterval,
+        onCheckpoint,
+        existingCheckpoint,
+        extractionId,
+      );
 
       // Filter results
       onLog('Filtering results...');
@@ -91,7 +149,7 @@ export class ScraperService {
     }
   }
 
-  private async scrollResults(page: any, maxResults: number) {
+  private async scrollResults(page: Page, maxResults: number) {
     const feedSelector = 'div[role="feed"]';
     let previousHeight = 0;
     let attempts = 0;
@@ -130,181 +188,226 @@ export class ScraperService {
     }
   }
 
-  private async extractPlaceData(page: any, maxResults: number, onLog: (message: string) => void = () => {}): Promise<ExtractedPlace[]> {
+  private async extractPlaceData(
+    keyword: string,
+    page: Page,
+    maxResults: number,
+    onLog: (message: string) => void = () => {},
+    resumeFromCheckpoint: boolean = false,
+    saveCheckpoints: boolean = false,
+    checkpointInterval: number = 10,
+    onCheckpoint?: (data: CheckpointData) => Promise<void>,
+    existingCheckpoint?: CheckpointData | null,
+    extractionId?: string,
+  ): Promise<ExtractedPlace[]> {
     const places: ExtractedPlace[] = [];
+    let startIndex = 0;
+    let failedPlacesCount = 0;
+    let duplicatesSkipped = 0;
+    let withoutPhoneSkipped = 0;
+    let withoutWebsiteSkipped = 0;
+
+    // Initialize from checkpoint if resuming
+    if (resumeFromCheckpoint && existingCheckpoint) {
+      places.push(...existingCheckpoint.places);
+      startIndex = existingCheckpoint.lastProcessedIndex + 1;
+      failedPlacesCount = existingCheckpoint.failedPlaces || 0;
+      duplicatesSkipped = existingCheckpoint.duplicatesSkipped || 0;
+      withoutPhoneSkipped = existingCheckpoint.withoutPhoneSkipped || 0;
+      withoutWebsiteSkipped = existingCheckpoint.withoutWebsiteSkipped || 0;
+
+      onLog(`Resuming extraction from index ${startIndex} (already have ${places.length} places)`);
+    }
 
     // Get all place articles
     const placeElements = await page.$$('div[role="article"]');
     const limit = Math.min(placeElements.length, maxResults);
     onLog(`Found ${placeElements.length} places, extracting ${limit} results...`);
 
-    for (let i = 0; i < limit; i++) {
+    for (let i = startIndex; i < limit; i++) {
       try {
         const element = placeElements[i];
 
-        // Extract name from the article card before clicking (as fallback)
-        const cardName = await element.evaluate((el: any) => {
-          const nameEl = el.querySelector('div.qBF1Pd') ||
-                        el.querySelector('div.fontHeadlineSmall') ||
-                        el.querySelector('a[aria-label]');
-          return nameEl?.textContent?.trim() || nameEl?.getAttribute('aria-label') || '';
-        });
-
-        // Click on the place to open details
-        await element.click();
-        await page.waitForTimeout(2000);
-
-        if ((i + 1) % 5 === 0 || i === limit - 1) {
-          onLog(`Extracted ${i + 1}/${limit} places...`);
-        }
-
-        // Extract data from the details panel
-        const placeData = await page.evaluate((fallbackName: string) => {
-          const data: any = {
-            category: '',
-            name: '',
-            address: '',
-            phone: '',
-            email: '',
-            website: '',
-            rating: 0,
-            reviewsCount: 0,
-            reviews: [],
-            openingHours: [],
-            isOpen: false,
-            placeId: '',
-          };
-
-          // Name - Try multiple selectors for business name
-          let nameEl = document.querySelector('h1.DUwDvf');
-          if (!nameEl) nameEl = document.querySelector('div[role="main"] h1');
-          if (!nameEl) nameEl = document.querySelector('h1');
-          if (nameEl) {
-            const nameText = nameEl.textContent?.trim() || '';
-            // Filter out common non-business name texts
-            if (nameText && !['Results', 'Google Maps', 'Map'].includes(nameText)) {
-              data.name = nameText;
-            }
-          }
-
-          // Use fallback name from card if main extraction failed
-          if (!data.name && fallbackName) {
-            data.name = fallbackName;
-          }
-
-          // Category
-          const categoryEl = document.querySelector('button[jsaction*="category"]');
-          if (categoryEl) data.category = categoryEl.textContent?.trim() || '';
-
-          // Rating
-          const ratingEl = document.querySelector('div[role="img"][aria-label*="stars"]');
-          if (ratingEl) {
-            const ratingText = ratingEl.getAttribute('aria-label') || '';
-            const match = ratingText.match(/(\d+\.?\d*)/);
-            if (match) data.rating = parseFloat(match[1]);
-          }
-
-          // Review count
-          const reviewCountEl = document.querySelector('button[aria-label*="reviews"]');
-          if (reviewCountEl) {
-            const text = reviewCountEl.textContent || '';
-            const match = text.match(/(\d+(?:,\d+)?)/);
-            if (match) {
-              data.reviewsCount = parseInt(match[1].replace(/,/g, ''));
-            }
-          }
-
-          // Address
-          const addressEl = document.querySelector('button[data-item-id="address"]');
-          if (addressEl) {
-            const addressDiv = addressEl.querySelector('div[class*="fontBodyMedium"]');
-            if (addressDiv) data.address = addressDiv.textContent?.trim() || '';
-          }
-
-          // Phone
-          const phoneEl = document.querySelector('button[data-item-id*="phone"]');
-          if (phoneEl) {
-            const phoneDiv = phoneEl.querySelector('div[class*="fontBodyMedium"]');
-            if (phoneDiv) data.phone = phoneDiv.textContent?.trim() || '';
-          }
-
-          // Website
-          const websiteEl = document.querySelector('a[data-item-id="authority"]');
-          if (websiteEl) {
-            data.website = websiteEl.getAttribute('href') || '';
-          }
-
-          // Opening Hours
-          const hoursButton = document.querySelector('button[data-item-id="oh"]');
-          if (hoursButton) {
-            const hoursText = hoursButton.getAttribute('aria-label') || '';
-            if (hoursText.includes('Open') || hoursText.includes('Closed')) {
-              data.isOpen = hoursText.includes('Open');
-            }
-            // Try to get detailed hours
-            const hoursDiv = hoursButton.querySelector('div[class*="fontBodyMedium"]');
-            if (hoursDiv) {
-              const hoursContent = hoursDiv.textContent?.trim() || '';
-              data.openingHours = [hoursContent];
-            }
-          }
-
-          // Extract top 5 reviews
-          const reviewElements = document.querySelectorAll('div[data-review-id]');
-          const reviews: any[] = [];
-
-          for (let i = 0; i < Math.min(5, reviewElements.length); i++) {
-            const reviewEl = reviewElements[i];
-            const authorEl = reviewEl.querySelector('button[aria-label]');
-            const ratingEl = reviewEl.querySelector('span[role="img"]');
-            const textEl = reviewEl.querySelector('span[class*="review-text"]') ||
-                           reviewEl.querySelector('div[class*="review-full-text"]');
-            const dateEl = reviewEl.querySelector('span[class*="review-date"]');
-
-            const review: any = {
-              author: authorEl?.getAttribute('aria-label') || 'Anonymous',
-              rating: 0,
-              text: textEl?.textContent?.trim() || '',
-              date: dateEl?.textContent?.trim() || '',
-            };
-
-            // Extract rating from aria-label
-            if (ratingEl) {
-              const ratingText = ratingEl.getAttribute('aria-label') || '';
-              const match = ratingText.match(/(\d+)/);
-              if (match) review.rating = parseInt(match[1]);
-            }
-
-            reviews.push(review);
-          }
-
-          data.reviews = reviews;
-
-          // Try to get place ID from URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const placeId = urlParams.get('place_id');
-          if (placeId) data.placeId = placeId;
-
-          return data;
-        }, cardName);
-
-        // Try to extract email from website or page
-        if (placeData.website) {
-          placeData.email = await this.extractEmailFromWebsite(page, placeData.website);
-        }
+        const placeData = await this.extractSinglePlace(page, element, i, limit, onLog);
 
         places.push(placeData);
 
+        // Save checkpoint if enabled and interval met
+        if (saveCheckpoints && onCheckpoint && extractionId && (i + 1) % checkpointInterval === 0) {
+          await onCheckpoint({
+            extractionId,
+            keyword,
+            lastProcessedIndex: i,
+            totalProcessed: i + 1,
+            places: [...places],
+            failedPlaces: failedPlacesCount,
+            duplicatesSkipped,
+            withoutPhoneSkipped,
+            withoutWebsiteSkipped,
+            timestamp: new Date(),
+          });
+          onLog(`Checkpoint saved at index ${i + 1}`);
+        }
+
         this.logger.debug(`Extracted place ${i + 1}/${limit}: ${placeData.name}`);
       } catch (error) {
+        failedPlacesCount++;
         this.logger.warn(`Failed to extract place ${i + 1}: ${error.message}`);
+
+        // Save debug artifact
+        if (this.debugService.isDebugMode() && extractionId) {
+          await this.debugService.saveScreenshot(page, extractionId, `failed_place_${i + 1}`);
+          await this.debugService.saveHtmlDump(page, extractionId, `failed_place_${i + 1}`);
+        }
       }
     }
 
     return places;
   }
 
-  private async extractEmailFromWebsite(page: any, website: string): Promise<string> {
+  private async extractSinglePlace(
+    page: Page,
+    element: ElementHandle,
+    index: number,
+    limit: number,
+    onLog: (message: string) => void,
+  ): Promise<ExtractedPlace> {
+    // Extract name from the article card before clicking (as fallback)
+    let cardName = await extractTextFromChild(element, SELECTORS.CARD_NAME, {
+      description: 'business name (card)',
+    });
+
+    if (!cardName) {
+      cardName = await extractAttributeFromChild(element, SELECTORS.CARD_NAME, 'aria-label', {
+        description: 'business name aria-label (card)',
+      });
+    }
+
+    // Click on the place to open details with retry
+    await retryWithBackoff(
+      async () => {
+        await element.click();
+      },
+      { maxAttempts: 3, initialDelay: 1000 },
+    );
+
+    await page.waitForTimeout(2000);
+
+    if ((index + 1) % 5 === 0 || index === limit - 1) {
+      onLog(`Extracted ${index + 1}/${limit} places...`);
+    }
+
+    // Extract data using robust selectors
+    const name = await extractText(page, SELECTORS.BUSINESS_NAME, {
+      defaultValue: cardName,
+      description: 'business name',
+    });
+
+    const category = await extractText(page, SELECTORS.CATEGORY, { description: 'category' });
+
+    // Address: try attribute first, then text
+    let address = await extractAttribute(page, SELECTORS.ADDRESS, 'aria-label', {
+      description: 'address attribute',
+    });
+    if (!address) {
+      address = await extractText(page, SELECTORS.ADDRESS, { description: 'address text' });
+    }
+
+    // Phone: try attribute first, then text
+    let phone = await extractAttribute(page, SELECTORS.PHONE, 'aria-label', {
+      description: 'phone attribute',
+    });
+    if (!phone) {
+      phone = await extractText(page, SELECTORS.PHONE, { description: 'phone text' });
+    }
+
+    const website = await extractAttribute(page, SELECTORS.WEBSITE, 'href', {
+      description: 'website',
+    });
+
+    const ratingStr = await extractAttribute(page, SELECTORS.RATING, 'aria-label', {
+      description: 'rating',
+    });
+    const rating = ratingStr ? parseFloat(ratingStr) : 0;
+
+    const reviewsCountStr = await extractAttribute(page, SELECTORS.REVIEWS_COUNT, 'aria-label', {
+      description: 'reviews count',
+    });
+    const reviewsCount = reviewsCountStr ? parseInt(reviewsCountStr.replace(/\D/g, '')) : 0;
+
+    // Extract reviews
+    const reviewElements = await findElements(page, SELECTORS.REVIEWS, { description: 'reviews' });
+    const reviews: Review[] = [];
+
+    for (let j = 0; j < Math.min(5, reviewElements.length); j++) {
+      const reviewEl = reviewElements[j];
+      const author = await extractAttributeFromChild(
+        reviewEl,
+        SELECTORS.REVIEW_AUTHOR,
+        'aria-label',
+        { defaultValue: 'Anonymous' },
+      );
+
+      const ratingStr = await extractAttributeFromChild(
+        reviewEl,
+        SELECTORS.REVIEW_RATING,
+        'aria-label',
+      );
+      const rating = ratingStr ? parseInt(ratingStr.match(/(\d+)/)?.[1] || '0') : 0;
+
+      const text = await extractTextFromChild(reviewEl, SELECTORS.REVIEW_TEXT);
+      const date = await extractTextFromChild(reviewEl, SELECTORS.REVIEW_DATE);
+
+      reviews.push({ author, rating, text, date });
+    }
+
+    // Opening hours
+    let isOpen = false;
+    let openingHours: string[] = [];
+    const hoursBtn = await findElement(page, SELECTORS.OPENING_HOURS);
+
+    if (hoursBtn) {
+      const hoursText = await extractAttributeFromElement(hoursBtn, 'aria-label');
+      if (hoursText.includes('Open') || hoursText.includes('Closed')) {
+        isOpen = hoursText.includes('Open');
+      }
+
+      // Try to get detailed hours from text content
+      const hoursContent = await extractTextFromElement(hoursBtn);
+      if (hoursContent) {
+        openingHours = [hoursContent];
+      }
+    }
+
+    // Place ID from URL
+    const placeId = await page.evaluate(() => {
+      return new URLSearchParams(window.location.search).get('place_id') || '';
+    });
+
+    const placeData: ExtractedPlace = {
+      category,
+      name,
+      address,
+      phone,
+      email: '',
+      website,
+      rating,
+      reviewsCount,
+      reviews,
+      openingHours,
+      placeId,
+      isOpen,
+    };
+
+    // Try to extract email from website or page
+    if (placeData.website) {
+      placeData.email = await this.extractEmailFromWebsite();
+    }
+
+    return placeData;
+  }
+
+  private async extractEmailFromWebsite(): Promise<string> {
     // Simple email extraction - in production, you might want to visit the website
     // For now, we'll just return empty string
     // This would require opening the website in a new tab and searching for email
@@ -323,6 +426,7 @@ export class ScraperService {
     duplicatesSkipped: number;
     withoutPhoneSkipped: number;
     withoutWebsiteSkipped: number;
+    failedPlaces: number;
   } {
     let duplicatesSkipped = 0;
     let withoutPhoneSkipped = 0;
@@ -361,6 +465,7 @@ export class ScraperService {
       duplicatesSkipped,
       withoutPhoneSkipped,
       withoutWebsiteSkipped,
+      failedPlaces: 0, // Will be implemented in Phase 4
     };
   }
 }
