@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Extraction, ExtractedPlace, extractionAPI } from "@/lib/api";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 import {
   Download,
+  FileSpreadsheet,
   Search,
   Phone,
   MapPin,
@@ -12,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  FileSpreadsheet,
   Globe,
   Navigation,
 } from "lucide-react";
