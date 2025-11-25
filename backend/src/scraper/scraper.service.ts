@@ -34,12 +34,15 @@ export class ScraperService {
     duplicatesSkipped: number;
     withoutPhoneSkipped: number;
     withoutWebsiteSkipped: number;
+    alreadyExistsSkipped: number;
     failedPlaces: number;
   }> {
     const {
       skipDuplicates = true,
       skipWithoutPhone = true,
       skipWithoutWebsite = false,
+      skipAlreadyExtracted = false,
+      previousPlaces = [],
       maxResults = 50,
       onLog = () => {},
       resumeFromCheckpoint = false,
@@ -114,12 +117,19 @@ export class ScraperService {
       onLog('Loading more results...');
       await this.scrollResults(page, maxResults);
 
-      // Extract place data
-      onLog(`Extracting data from places (max ${maxResults})...`);
-      const places = await this.extractPlaceData(
+      // Extract and filter with auto-continue logic
+      onLog(`Extracting data from places (target: ${maxResults} new places)...`);
+      const { filteredResults } = await this.extractAndFilterWithAutoContinue(
         keyword,
         page,
         maxResults,
+        {
+          skipDuplicates,
+          skipWithoutPhone,
+          skipWithoutWebsite,
+          skipAlreadyExtracted,
+          previousPlaces,
+        },
         onLog,
         resumeFromCheckpoint,
         saveCheckpoints,
@@ -129,16 +139,8 @@ export class ScraperService {
         extractionId,
       );
 
-      // Filter results
-      onLog('Filtering results...');
-      const filteredResults = this.filterResults(places, {
-        skipDuplicates,
-        skipWithoutPhone,
-        skipWithoutWebsite,
-      });
-
-      onLog(`Extraction completed! Found ${filteredResults.results.length} results`);
-      this.logger.log(`Scraping completed. Found ${filteredResults.results.length} results`);
+      onLog(`Extraction completed! Found ${filteredResults.results.length} new results`);
+      this.logger.log(`Scraping completed. Found ${filteredResults.results.length} new results`);
 
       return filteredResults;
     } catch (error) {
@@ -147,6 +149,102 @@ export class ScraperService {
     } finally {
       await browser.close();
     }
+  }
+
+  /**
+   * Extract and filter places with auto-continue logic
+   * Continues extraction until target number of NEW places is reached
+   */
+  private async extractAndFilterWithAutoContinue(
+    keyword: string,
+    page: Page,
+    targetResults: number,
+    filterOptions: {
+      skipDuplicates?: boolean;
+      skipWithoutPhone?: boolean;
+      skipWithoutWebsite?: boolean;
+      skipAlreadyExtracted?: boolean;
+      previousPlaces?: ExtractedPlace[];
+    },
+    onLog: (message: string) => void = () => {},
+    resumeFromCheckpoint: boolean = false,
+    saveCheckpoints: boolean = false,
+    checkpointInterval: number = 10,
+    onCheckpoint?: (data: CheckpointData) => Promise<void>,
+    existingCheckpoint?: CheckpointData | null,
+    extractionId?: string,
+  ): Promise<{
+    places: ExtractedPlace[];
+    filteredResults: {
+      results: ExtractedPlace[];
+      duplicatesSkipped: number;
+      withoutPhoneSkipped: number;
+      withoutWebsiteSkipped: number;
+      alreadyExistsSkipped: number;
+      failedPlaces: number;
+    };
+  }> {
+    const MAX_EXTRACTION_ATTEMPTS = 200; // Safety limit to prevent infinite loops
+
+    // Build lookup maps for fast duplicate checking during extraction
+    const previousPhones = new Set<string>();
+    const previousNameAddress = new Set<string>();
+
+    if (filterOptions.skipAlreadyExtracted && filterOptions.previousPlaces) {
+      for (const prevPlace of filterOptions.previousPlaces) {
+        if (prevPlace.phone) {
+          const normalizedPhone = this.normalizePhone(prevPlace.phone);
+          if (normalizedPhone) {
+            previousPhones.add(normalizedPhone);
+          }
+        }
+        if (prevPlace.name && prevPlace.address) {
+          const key = this.createNameAddressKey(prevPlace.name, prevPlace.address);
+          previousNameAddress.add(key);
+        }
+      }
+      this.logger.debug(
+        `Pre-built lookup maps: ${previousPhones.size} phones, ${previousNameAddress.size} name+address`,
+      );
+    }
+
+    // Extract all places and filter them
+    const allExtractedPlaces = await this.extractPlaceData(
+      keyword,
+      page,
+      MAX_EXTRACTION_ATTEMPTS, // Extract many places
+      onLog,
+      resumeFromCheckpoint,
+      saveCheckpoints,
+      checkpointInterval,
+      onCheckpoint,
+      existingCheckpoint,
+      extractionId,
+    );
+
+    // Now filter and take only targetResults NEW places
+    onLog(
+      `Filtering ${allExtractedPlaces.length} extracted places to find ${targetResults} new ones...`,
+    );
+    const filteredResults = this.filterResults(allExtractedPlaces, filterOptions);
+
+    // Trim to target results if we have more
+    if (filteredResults.results.length > targetResults) {
+      filteredResults.results = filteredResults.results.slice(0, targetResults);
+    }
+
+    onLog(
+      `Filtered: ${filteredResults.results.length} new, ` +
+        `${filteredResults.alreadyExistsSkipped} already exists, ` +
+        `${filteredResults.duplicatesSkipped} duplicates, ` +
+        `${filteredResults.withoutPhoneSkipped} without phone, ` +
+        `${filteredResults.withoutWebsiteSkipped} without website`,
+    );
+
+    return {
+      places: allExtractedPlaces,
+      filteredResults,
+    };
   }
 
   private async scrollResults(page: Page, maxResults: number) {
@@ -206,6 +304,7 @@ export class ScraperService {
     let duplicatesSkipped = 0;
     let withoutPhoneSkipped = 0;
     let withoutWebsiteSkipped = 0;
+    let alreadyExistsSkipped = 0;
 
     // Initialize from checkpoint if resuming
     if (resumeFromCheckpoint && existingCheckpoint) {
@@ -215,6 +314,7 @@ export class ScraperService {
       duplicatesSkipped = existingCheckpoint.duplicatesSkipped || 0;
       withoutPhoneSkipped = existingCheckpoint.withoutPhoneSkipped || 0;
       withoutWebsiteSkipped = existingCheckpoint.withoutWebsiteSkipped || 0;
+      alreadyExistsSkipped = existingCheckpoint.alreadyExistsSkipped || 0;
 
       onLog(`Resuming extraction from index ${startIndex} (already have ${places.length} places)`);
     }
@@ -244,6 +344,7 @@ export class ScraperService {
             duplicatesSkipped,
             withoutPhoneSkipped,
             withoutWebsiteSkipped,
+            alreadyExistsSkipped,
             timestamp: new Date(),
           });
           onLog(`Checkpoint saved at index ${i + 1}`);
@@ -621,19 +722,49 @@ export class ScraperService {
       skipDuplicates?: boolean;
       skipWithoutPhone?: boolean;
       skipWithoutWebsite?: boolean;
+      skipAlreadyExtracted?: boolean;
+      previousPlaces?: ExtractedPlace[];
     },
   ): {
     results: ExtractedPlace[];
     duplicatesSkipped: number;
     withoutPhoneSkipped: number;
     withoutWebsiteSkipped: number;
+    alreadyExistsSkipped: number;
     failedPlaces: number;
   } {
     let duplicatesSkipped = 0;
     let withoutPhoneSkipped = 0;
     let withoutWebsiteSkipped = 0;
+    let alreadyExistsSkipped = 0;
     const seenNames = new Set<string>();
     const results: ExtractedPlace[] = [];
+
+    // Build lookup maps from previous places if skipAlreadyExtracted is enabled
+    const previousPhones = new Set<string>();
+    const previousNameAddress = new Set<string>();
+
+    if (options.skipAlreadyExtracted && options.previousPlaces) {
+      for (const prevPlace of options.previousPlaces) {
+        // Index by phone (most reliable)
+        if (prevPlace.phone) {
+          const normalizedPhone = this.normalizePhone(prevPlace.phone);
+          if (normalizedPhone) {
+            previousPhones.add(normalizedPhone);
+          }
+        }
+
+        // Index by name + address combination
+        if (prevPlace.name && prevPlace.address) {
+          const key = this.createNameAddressKey(prevPlace.name, prevPlace.address);
+          previousNameAddress.add(key);
+        }
+      }
+
+      this.logger.debug(
+        `Built lookup maps: ${previousPhones.size} phones, ${previousNameAddress.size} name+address combinations`,
+      );
+    }
 
     for (const place of places) {
       // Skip if no phone and option is enabled
@@ -648,7 +779,34 @@ export class ScraperService {
         continue;
       }
 
-      // Skip duplicates based on name
+      // Check if place already exists in previous extractions (priority: phone > name+address)
+      if (options.skipAlreadyExtracted) {
+        let alreadyExists = false;
+
+        // Priority 1: Check by phone number
+        if (place.phone) {
+          const normalizedPhone = this.normalizePhone(place.phone);
+          if (normalizedPhone && previousPhones.has(normalizedPhone)) {
+            alreadyExistsSkipped++;
+            alreadyExists = true;
+          }
+        }
+
+        // Priority 2: Check by name + address (only if not already matched by phone)
+        if (!alreadyExists && place.name && place.address) {
+          const key = this.createNameAddressKey(place.name, place.address);
+          if (previousNameAddress.has(key)) {
+            alreadyExistsSkipped++;
+            alreadyExists = true;
+          }
+        }
+
+        if (alreadyExists) {
+          continue;
+        }
+      }
+
+      // Skip duplicates within current extraction based on name
       if (options.skipDuplicates) {
         const normalizedName = place.name.toLowerCase().trim();
         if (seenNames.has(normalizedName)) {
@@ -666,7 +824,25 @@ export class ScraperService {
       duplicatesSkipped,
       withoutPhoneSkipped,
       withoutWebsiteSkipped,
-      failedPlaces: 0, // Will be implemented in Phase 4
+      alreadyExistsSkipped,
+      failedPlaces: 0,
     };
+  }
+
+  /**
+   * Normalize phone number for comparison
+   * Removes all non-digit characters
+   */
+  private normalizePhone(phone: string): string {
+    return phone.replace(/\D/g, '');
+  }
+
+  /**
+   * Create a normalized key from name and address for duplicate detection
+   */
+  private createNameAddressKey(name: string, address: string): string {
+    const normalizedName = name.toLowerCase().trim();
+    const normalizedAddress = address.toLowerCase().trim().replace(/\s+/g, ' ');
+    return `${normalizedName}::${normalizedAddress}`;
   }
 }

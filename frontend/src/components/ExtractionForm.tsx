@@ -15,6 +15,7 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [skipWithoutPhone, setSkipWithoutPhone] = useState(true);
   const [skipWithoutWebsite, setSkipWithoutWebsite] = useState(false);
+  const [skipAlreadyExtracted, setSkipAlreadyExtracted] = useState(false);
   const [maxResults, setMaxResults] = useState(50);
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -67,6 +68,7 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
         skipDuplicates,
         skipWithoutPhone,
         skipWithoutWebsite,
+        skipAlreadyExtracted,
         maxResults,
       });
 
@@ -264,6 +266,28 @@ export default function ExtractionForm({ onExtractionComplete }: ExtractionFormP
                   </label>
                   <p className="text-xs text-gray-500 mt-1">
                     Only extract businesses with websites
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3">
+                <input
+                  id="skipAlreadyExtracted"
+                  type="checkbox"
+                  checked={skipAlreadyExtracted}
+                  onChange={(e) => setSkipAlreadyExtracted(e.target.checked)}
+                  className="mt-1 w-5 h-5 text-google-blue rounded focus:ring-google-blue"
+                  disabled={loading}
+                />
+                <div>
+                  <label
+                    htmlFor="skipAlreadyExtracted"
+                    className="text-sm font-medium text-gray-700 block"
+                  >
+                    Skip already extracted places
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Skip places that you already extracted with this keyword before
                   </p>
                 </div>
               </div>

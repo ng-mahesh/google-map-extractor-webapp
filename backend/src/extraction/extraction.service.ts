@@ -50,6 +50,8 @@ export class ExtractionService {
       status: 'processing',
       skipDuplicates: dto.skipDuplicates,
       skipWithoutPhone: dto.skipWithoutPhone,
+      skipWithoutWebsite: dto.skipWithoutWebsite,
+      skipAlreadyExtracted: dto.skipAlreadyExtracted,
       startedAt: new Date(),
     });
 
@@ -68,12 +70,29 @@ export class ExtractionService {
 
   private async performExtraction(extractionId: string, dto: StartExtractionDto) {
     try {
+      // Get extraction document to fetch userId
+      const extraction = await this.extractionModel.findById(extractionId);
+      if (!extraction) {
+        throw new Error('Extraction not found');
+      }
+
       // Check for existing checkpoint
       const existingCheckpoint = await this.loadCheckpoint(extractionId);
 
       if (existingCheckpoint) {
         this.logger.log(
           `Resuming extraction ${extractionId} from checkpoint at index ${existingCheckpoint.lastProcessedIndex}`,
+        );
+      }
+
+      // Fetch previously extracted places if skipAlreadyExtracted is enabled
+      const previousPlaces = dto.skipAlreadyExtracted
+        ? await this.getPreviouslyExtractedPlaces(extraction.userId.toString(), dto.keyword)
+        : [];
+
+      if (dto.skipAlreadyExtracted && previousPlaces.length > 0) {
+        this.logger.log(
+          `Found ${previousPlaces.length} previously extracted places for keyword: ${dto.keyword}`,
         );
       }
 
@@ -118,6 +137,7 @@ export class ExtractionService {
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped,
+        alreadyExistsSkipped,
         failedPlaces,
       } = await this.performanceMonitor.measureAsync(
         `extraction-${extractionId}`,
@@ -126,6 +146,8 @@ export class ExtractionService {
             skipDuplicates: dto.skipDuplicates,
             skipWithoutPhone: dto.skipWithoutPhone,
             skipWithoutWebsite: dto.skipWithoutWebsite,
+            skipAlreadyExtracted: dto.skipAlreadyExtracted,
+            previousPlaces: previousPlaces,
             maxResults: dto.maxResults,
             onLog: addLog,
             resumeFromCheckpoint: !!existingCheckpoint,
@@ -144,6 +166,7 @@ export class ExtractionService {
         duplicatesSkipped,
         withoutPhoneSkipped,
         withoutWebsiteSkipped: withoutWebsiteSkipped || 0,
+        alreadyExistsSkipped: alreadyExistsSkipped || 0,
         failedPlaces: failedPlaces || 0,
         completedAt: new Date(),
       });
@@ -284,6 +307,36 @@ export class ExtractionService {
 
     // Also delete checkpoint if it exists
     await this.deleteCheckpoint(extractionId);
+  }
+
+  /**
+   * Fetch previously extracted places for the same keyword
+   */
+  async getPreviouslyExtractedPlaces(userId: string, keyword: string): Promise<any[]> {
+    try {
+      const previousExtractions = await this.extractionModel
+        .find({
+          userId,
+          keyword: keyword.trim(),
+          status: 'completed',
+        })
+        .select('results')
+        .exec();
+
+      // Flatten all results from previous extractions into a single array
+      const allPreviousPlaces = previousExtractions.reduce((acc, extraction) => {
+        return acc.concat(extraction.results || []);
+      }, []);
+
+      this.logger.debug(
+        `Found ${allPreviousPlaces.length} previously extracted places for keyword: ${keyword}`,
+      );
+
+      return allPreviousPlaces;
+    } catch (error) {
+      this.logger.error(`Failed to fetch previously extracted places: ${error.message}`);
+      return [];
+    }
   }
 
   /**

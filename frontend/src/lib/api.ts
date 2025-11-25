@@ -111,6 +111,7 @@ export interface StartExtractionData {
   skipDuplicates?: boolean;
   skipWithoutPhone?: boolean;
   skipWithoutWebsite?: boolean;
+  skipAlreadyExtracted?: boolean;
   maxResults?: number;
 }
 
@@ -153,9 +154,11 @@ export interface Extraction {
   duplicatesSkipped: number;
   withoutPhoneSkipped: number;
   withoutWebsiteSkipped?: number;
+  alreadyExistsSkipped?: number;
   skipDuplicates: boolean;
   skipWithoutPhone: boolean;
   skipWithoutWebsite?: boolean;
+  skipAlreadyExtracted?: boolean;
   logs?: string[];
   errorMessage?: string;
   startedAt: string;

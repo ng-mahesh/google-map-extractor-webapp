@@ -106,18 +106,24 @@ describe("ExtractionForm", () => {
     const skipWithoutWebsite = screen.getByLabelText(
       /skip entries without website/i
     ) as HTMLInputElement;
+    const skipAlreadyExtracted = screen.getByLabelText(
+      /skip already extracted places/i
+    ) as HTMLInputElement;
 
     // Check default values
     expect(skipDuplicates.checked).toBe(true);
     expect(skipWithoutPhone.checked).toBe(true);
     expect(skipWithoutWebsite.checked).toBe(false);
+    expect(skipAlreadyExtracted.checked).toBe(false);
 
     // Toggle checkboxes
     fireEvent.click(skipDuplicates);
     fireEvent.click(skipWithoutWebsite);
+    fireEvent.click(skipAlreadyExtracted);
 
     expect(skipDuplicates.checked).toBe(false);
     expect(skipWithoutWebsite.checked).toBe(true);
+    expect(skipAlreadyExtracted.checked).toBe(true);
   });
 
   it("should update max results slider", () => {
@@ -160,6 +166,7 @@ describe("ExtractionForm", () => {
         skipDuplicates: true,
         skipWithoutPhone: true,
         skipWithoutWebsite: false,
+        skipAlreadyExtracted: false,
         maxResults: 50,
       });
     });

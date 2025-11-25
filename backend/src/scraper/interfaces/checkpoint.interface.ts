@@ -13,6 +13,7 @@ export interface CheckpointData {
   duplicatesSkipped: number;
   withoutPhoneSkipped: number;
   withoutWebsiteSkipped: number;
+  alreadyExistsSkipped: number;
   timestamp: Date;
 }
 
@@ -46,6 +47,8 @@ export interface ExtractionOptions {
   skipDuplicates?: boolean;
   skipWithoutPhone?: boolean;
   skipWithoutWebsite?: boolean;
+  skipAlreadyExtracted?: boolean;
+  previousPlaces?: ExtractedPlace[];
   maxResults?: number;
   resumeFromCheckpoint?: boolean;
   saveCheckpoints?: boolean;
