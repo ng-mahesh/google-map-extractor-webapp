@@ -23,6 +23,13 @@ export interface ExtractedPlace {
   openingHours?: string[];
   isOpen?: boolean;
   placeId?: string;
+  description?: string;
+  reviewUrl?: string;
+  photos?: string[];
+  price?: string;
+  featuredImage?: string;
+  cid?: string;
+  kgmid?: string;
 }
 
 @Schema({ timestamps: true })

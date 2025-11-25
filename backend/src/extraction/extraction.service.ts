@@ -233,14 +233,37 @@ export class ExtractionService {
       throw new BadRequestException('No results to export');
     }
 
+    // Helper function to clean text
+    const cleanText = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/·/g, '•') // Replace middle dot with bullet
+        .replace(/□/g, '') // Remove empty box characters
+        .replace(/[\u0000-\u001F]/g, '') // Remove control characters
+        .replace(/\uFFFD/g, ''); // Remove replacement characters
+    };
+
     // Define CSV fields
     const fields = [
-      { label: 'Category', value: 'category' },
-      { label: 'Name', value: 'name' },
-      { label: 'Address', value: 'address' },
-      { label: 'Phone', value: 'phone' },
-      { label: 'Website', value: 'website' },
+      { label: 'Category', value: (row) => cleanText(row.category) },
+      { label: 'Name', value: (row) => cleanText(row.name) },
+      { label: 'Address', value: (row) => cleanText(row.address) },
+      { label: 'Phone', value: (row) => cleanText(row.phone) },
+      { label: 'Email', value: (row) => cleanText(row.email) },
+      { label: 'Website', value: (row) => cleanText(row.website) },
       { label: 'Rating', value: 'rating' },
+      { label: 'Review Count', value: 'reviewsCount' },
+      { label: 'Description', value: (row) => cleanText(row.description) },
+      { label: 'Price', value: (row) => cleanText(row.price) },
+      {
+        label: 'Opening Hours',
+        value: (row) => row.openingHours?.map((h) => cleanText(h)).join('; ') || '',
+      },
+      { label: 'Is Open', value: (row) => (row.isOpen ? 'Yes' : 'No') },
+      { label: 'Review URL', value: 'reviewUrl' },
+      { label: 'Place ID', value: 'placeId' },
+      { label: 'CID', value: 'cid' },
+      { label: 'KGMID', value: 'kgmid' },
     ];
 
     const json2csvParser = new Parser({ fields });
