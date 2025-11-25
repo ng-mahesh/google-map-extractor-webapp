@@ -13,7 +13,9 @@ import {
   Download,
   Calendar,
   TrendingUp,
+  RefreshCw,
 } from "lucide-react";
+import { useExtraction } from "@/contexts/ExtractionContext";
 
 interface ExtractionHistoryProps {
   onViewResults: (extraction: Extraction) => void;
@@ -22,21 +24,39 @@ interface ExtractionHistoryProps {
 export default function ExtractionHistory({ onViewResults }: ExtractionHistoryProps) {
   const [extractions, setExtractions] = useState<Extraction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { activeExtractions, setOnExtractionComplete } = useExtraction();
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
+  const loadHistory = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    }
 
-  const loadHistory = async () => {
     try {
       const response = await extractionAPI.getHistory(20);
       setExtractions(response.data);
+      if (isRefresh) {
+        toast.success("History refreshed");
+      }
     } catch {
       toast.error("Failed to load extraction history");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadHistory();
+
+    // Set up callback to refresh history when extractions complete
+    if (setOnExtractionComplete) {
+      setOnExtractionComplete(() => {
+        loadHistory();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleViewResults = async (extractionId: string) => {
     try {
@@ -192,126 +212,164 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
   return (
     <div className="max-w-5xl mx-auto">
       {/* Header with Stats */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-normal text-gray-800 mb-2">Extraction History</h2>
-        <p className="text-sm text-gray-600">View and manage your recent data extractions</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-normal text-gray-800 mb-2">Extraction History</h2>
+          <p className="text-sm text-gray-600">View and manage your recent data extractions</p>
+        </div>
+        <button
+          onClick={() => loadHistory(true)}
+          disabled={refreshing}
+          className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors disabled:opacity-50"
+          title="Refresh history"
+        >
+          <RefreshCw className={`w-4 h-4 text-gray-600 ${refreshing ? "animate-spin" : ""}`} />
+          <span className="text-sm font-medium text-gray-700">Refresh</span>
+        </button>
       </div>
 
       {/* Extraction Cards Grid */}
       <div className="space-y-4">
-        {extractions.map((extraction) => (
-          <div
-            key={extraction._id}
-            className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-google-hover transition-all duration-200"
-          >
-            <div className="flex items-start justify-between gap-6">
-              {/* Left Content */}
-              <div className="flex-1 min-w-0">
-                {/* Header Row */}
-                <div className="flex items-center gap-3 mb-4">
-                  {getStatusIcon(extraction.status)}
-                  <h3 className="font-medium text-lg text-gray-800 truncate flex-1">
-                    {extraction.keyword}
-                  </h3>
-                  {getStatusBadge(extraction.status)}
-                </div>
+        {extractions.map((extraction) => {
+          const progress = activeExtractions.get(extraction._id);
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Date */}
-                  <div className="flex items-start space-x-2">
-                    <Calendar className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-500">Created</p>
-                      <p className="text-sm font-medium text-gray-700">
-                        {format(new Date(extraction.createdAt), "MMM dd, yyyy")}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {format(new Date(extraction.createdAt), "HH:mm")}
-                      </p>
-                    </div>
+          return (
+            <div
+              key={extraction._id}
+              className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-google-hover transition-all duration-200"
+            >
+              <div className="flex items-start justify-between gap-6">
+                {/* Left Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Header Row */}
+                  <div className="flex items-center gap-3 mb-4">
+                    {getStatusIcon(extraction.status)}
+                    <h3 className="font-medium text-lg text-gray-800 truncate flex-1">
+                      {extraction.keyword}
+                    </h3>
+                    {getStatusBadge(extraction.status)}
                   </div>
 
-                  {/* Results Count */}
-                  {extraction.status === "completed" && (
-                    <div className="flex items-start space-x-2">
-                      <TrendingUp className="w-4 h-4 text-google-green mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500">Total Results</p>
-                        <p className="text-lg font-semibold text-google-green">
-                          {extraction.totalResults}
-                        </p>
-                      </div>
+                  {/* Real-time Progress for Processing Extractions */}
+                  {extraction.status === "processing" && progress && (
+                    <div className="mb-4">
+                      {progress.percentage !== undefined && progress.percentage > 0 && (
+                        <div className="mb-2">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>Progress</span>
+                            <span>{progress.percentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div
+                              className="bg-google-blue h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: `${progress.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {progress.message && (
+                        <p className="text-xs text-gray-600 italic">{progress.message}</p>
+                      )}
                     </div>
                   )}
 
-                  {/* Skipped Stats */}
-                  {extraction.status === "completed" &&
-                    (extraction.duplicatesSkipped > 0 || extraction.withoutPhoneSkipped > 0) && (
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Date */}
+                    <div className="flex items-start space-x-2">
+                      <Calendar className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500">Created</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {format(new Date(extraction.createdAt), "MMM dd, yyyy")}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(extraction.createdAt), "HH:mm")}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Results Count */}
+                    {extraction.status === "completed" && (
                       <div className="flex items-start space-x-2">
-                        <XCircle className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <TrendingUp className="w-4 h-4 text-google-green mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-xs text-gray-500">Skipped</p>
-                          {extraction.duplicatesSkipped > 0 && (
-                            <p className="text-xs text-gray-600">
-                              {extraction.duplicatesSkipped} duplicates
-                            </p>
-                          )}
-                          {extraction.withoutPhoneSkipped > 0 && (
-                            <p className="text-xs text-gray-600">
-                              {extraction.withoutPhoneSkipped} without phone
-                            </p>
-                          )}
+                          <p className="text-xs text-gray-500">Total Results</p>
+                          <p className="text-lg font-semibold text-google-green">
+                            {extraction.totalResults}
+                          </p>
                         </div>
                       </div>
                     )}
+
+                    {/* Skipped Stats */}
+                    {extraction.status === "completed" &&
+                      (extraction.duplicatesSkipped > 0 || extraction.withoutPhoneSkipped > 0) && (
+                        <div className="flex items-start space-x-2">
+                          <XCircle className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs text-gray-500">Skipped</p>
+                            {extraction.duplicatesSkipped > 0 && (
+                              <p className="text-xs text-gray-600">
+                                {extraction.duplicatesSkipped} duplicates
+                              </p>
+                            )}
+                            {extraction.withoutPhoneSkipped > 0 && (
+                              <p className="text-xs text-gray-600">
+                                {extraction.withoutPhoneSkipped} without phone
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Error Message */}
+                  {extraction.status === "failed" && extraction.errorMessage && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-xs text-red-600 font-medium">Error:</p>
+                      <p className="text-sm text-red-700 mt-1">{extraction.errorMessage}</p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Error Message */}
-                {extraction.status === "failed" && extraction.errorMessage && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-xs text-red-600 font-medium">Error:</p>
-                    <p className="text-sm text-red-700 mt-1">{extraction.errorMessage}</p>
+                {/* Action Buttons */}
+                {extraction.status === "completed" && (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleViewResults(extraction._id)}
+                      className="flex items-center space-x-2 bg-google-blue hover:bg-primary-700 text-white font-medium py-2.5 px-5 rounded-full transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View</span>
+                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleExportCSV(extraction._id)}
+                        className="flex items-center space-x-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-full transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md whitespace-nowrap text-xs"
+                        title="Export as CSV"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>CSV</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const response = await extractionAPI.getExtraction(extraction._id);
+                          handleExportExcel(response.data);
+                        }}
+                        className="flex items-center space-x-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-full transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md whitespace-nowrap text-xs"
+                        title="Export as Excel"
+                      >
+                        <Download className="w-3.5 h-3.5 text-green-600" />
+                        <span>Excel</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Action Buttons */}
-              {extraction.status === "completed" && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => handleViewResults(extraction._id)}
-                    className="flex items-center space-x-2 bg-google-blue hover:bg-primary-700 text-white font-medium py-2.5 px-5 rounded-full transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>View</span>
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleExportCSV(extraction._id)}
-                      className="flex items-center space-x-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-full transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md whitespace-nowrap text-xs"
-                      title="Export as CSV"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>CSV</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const response = await extractionAPI.getExtraction(extraction._id);
-                        handleExportExcel(response.data);
-                      }}
-                      className="flex items-center space-x-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-full transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md whitespace-nowrap text-xs"
-                      title="Export as Excel"
-                    >
-                      <Download className="w-3.5 h-3.5 text-green-600" />
-                      <span>Excel</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

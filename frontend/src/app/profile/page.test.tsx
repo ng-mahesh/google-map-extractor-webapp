@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { useRouter } from "next/navigation";
 import ProfilePage from "./page";
 import { authAPI } from "@/lib/api";
+import { ExtractionProvider } from "@/contexts/ExtractionContext";
 
 // Mock dependencies
 jest.mock("next/navigation", () => ({
@@ -24,6 +25,9 @@ jest.mock("@/lib/api", () => ({
   uploadAPI: {
     uploadProfileImage: jest.fn(),
   },
+  extractionAPI: {
+    getHistory: jest.fn(() => Promise.resolve({ data: [] })),
+  },
 }));
 
 jest.mock("react-hot-toast", () => ({
@@ -32,6 +36,17 @@ jest.mock("react-hot-toast", () => ({
     error: jest.fn(),
     success: jest.fn(),
   },
+}));
+
+// Mock socket.io-client
+jest.mock("socket.io-client", () => ({
+  io: jest.fn(() => ({
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+    disconnect: jest.fn(),
+    removeAllListeners: jest.fn(),
+  })),
 }));
 
 describe("ProfilePage", () => {
@@ -65,13 +80,19 @@ describe("ProfilePage", () => {
     Storage.prototype.setItem = jest.fn();
   });
 
+  const renderWithProvider = (component: React.ReactElement) => {
+    return render(<ExtractionProvider>{component}</ExtractionProvider>);
+  };
+
   it("should render loading state initially", () => {
-    render(<ProfilePage />);
+    renderWithProvider(<ProfilePage />);
     expect(screen.getByText("Loading profile...")).toBeInTheDocument();
   });
 
   it("should fetch and display profile data", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Account Settings")).toBeInTheDocument();
@@ -84,7 +105,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show personal info section", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Personal info")).toBeInTheDocument();
@@ -98,7 +121,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show quota information", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Daily extraction quota")).toBeInTheDocument();
@@ -110,7 +135,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show account info section", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Account info")).toBeInTheDocument();
@@ -120,7 +147,9 @@ describe("ProfilePage", () => {
   });
 
   it("should display email as read-only", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Account Settings")).toBeInTheDocument();
@@ -130,7 +159,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show danger zone section", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Danger zone")).toBeInTheDocument();
@@ -141,7 +172,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show delete account button with description", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Delete account")).toBeInTheDocument();
@@ -153,7 +186,9 @@ describe("ProfilePage", () => {
   });
 
   it("should have dashboard navigation button", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Dashboard")).toBeInTheDocument();
@@ -161,7 +196,9 @@ describe("ProfilePage", () => {
   });
 
   it("should display profile picture section", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Profile picture")).toBeInTheDocument();
@@ -173,7 +210,9 @@ describe("ProfilePage", () => {
   });
 
   it("should render all main sections", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Account Settings")).toBeInTheDocument();
@@ -186,7 +225,9 @@ describe("ProfilePage", () => {
   });
 
   it("should call getProfile API on mount", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(authAPI.getProfile).toHaveBeenCalled();
@@ -194,7 +235,9 @@ describe("ProfilePage", () => {
   });
 
   it("should display user name in header", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getAllByText(mockProfile.name).length).toBeGreaterThanOrEqual(1);
@@ -202,7 +245,9 @@ describe("ProfilePage", () => {
   });
 
   it("should display user email in header", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getAllByText(mockProfile.email).length).toBeGreaterThanOrEqual(1);
@@ -210,7 +255,9 @@ describe("ProfilePage", () => {
   });
 
   it("should show quota progress information", async () => {
-    render(<ProfilePage />);
+    await act(async () => {
+      renderWithProvider(<ProfilePage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Total quota")).toBeInTheDocument();
