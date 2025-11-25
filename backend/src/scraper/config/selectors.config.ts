@@ -73,8 +73,9 @@ export const SELECTORS = {
 
   // Review author
   REVIEW_AUTHOR: [
-    'div.d4r55', // Primary selector
-    'button[aria-label]', // Fallback 1
+    'button[aria-label]', // Primary selector - author name button
+    'div.d4r55', // Fallback 1
+    'div[data-review-id] button:first-child', // Fallback 2
   ],
 
   // Review rating
@@ -112,6 +113,44 @@ export const SELECTORS = {
     'span[aria-label*="Open"]', // Primary selector
     'div[aria-label*="Open"]', // Fallback 1
   ],
+
+  // Description
+  DESCRIPTION: [
+    'div[data-attrid="description"]', // Primary selector
+    'div.WeS02d', // Fallback 1
+    'div[class*="description"]', // Fallback 2
+  ],
+
+  // Price range
+  PRICE: [
+    'span[aria-label*="Price"]', // Primary selector
+    'span.mgr77e', // Fallback 1
+  ],
+
+  // Photos
+  PHOTOS: [
+    'button[jsaction*="photo"]', // Primary selector for photo button
+    'img[src*="googleusercontent"]', // Fallback: Google hosted images
+  ],
+
+  // Featured/Main image
+  FEATURED_IMAGE: [
+    'div[role="main"] img[src*="googleusercontent"]', // Primary selector
+    'button[aria-label*="Photo"] img', // Fallback 1
+  ],
+
+  // Review URL (constructed from place data)
+  REVIEW_BUTTON: [
+    'button[aria-label*="Write a review"]', // Primary selector
+    'a[href*="review"]', // Fallback 1
+  ],
+
+  // Reviews tab button to navigate to reviews page
+  REVIEWS_TAB: [
+    'div.Gpq6kf.NlVald[aria-hidden="true"]', // Primary selector for Reviews text
+    'button[aria-label*="Reviews"]', // Fallback 1
+    'button:has(> .Gpq6kf.NlVald)', // Fallback 2
+  ],
 } as const;
 
 /**
@@ -134,6 +173,11 @@ export const SELECTOR_METADATA = {
   OPENING_HOURS: 'Opening hours button',
   HOURS_TABLE: 'Hours table',
   IS_OPEN: 'Open/closed status',
+  DESCRIPTION: 'Business description',
+  PRICE: 'Price range',
+  PHOTOS: 'Photo elements',
+  FEATURED_IMAGE: 'Featured/main image',
+  REVIEW_BUTTON: 'Write review button',
 } as const;
 
 /**

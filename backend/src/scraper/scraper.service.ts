@@ -330,10 +330,34 @@ export class ScraperService {
     });
     const rating = ratingStr ? parseFloat(ratingStr) : 0;
 
-    const reviewsCountStr = await extractAttribute(page, SELECTORS.REVIEWS_COUNT, 'aria-label', {
-      description: 'reviews count',
-    });
-    const reviewsCount = reviewsCountStr ? parseInt(reviewsCountStr.replace(/\D/g, '')) : 0;
+    // Extract reviews count - try multiple approaches
+    let reviewsCount = 0;
+    try {
+      // First try: Look for aria-label with "reviews" text
+      const reviewsCountStr = await page.evaluate(() => {
+        // Try to find span with aria-label containing "reviews"
+        const reviewSpans = Array.from(
+          document.querySelectorAll('span[role="img"][aria-label*="review"]'),
+        );
+        for (const span of reviewSpans) {
+          const label = span.getAttribute('aria-label');
+          if (label && label.includes('review')) {
+            // Extract number from "4,903 reviews" or similar
+            const match = label.match(/([\d,]+)\s*review/i);
+            if (match) {
+              return match[1];
+            }
+          }
+        }
+        return null;
+      });
+
+      if (reviewsCountStr) {
+        reviewsCount = parseInt(reviewsCountStr.replace(/,/g, ''));
+      }
+    } catch (e) {
+      this.logger.debug(`Failed to extract reviews count: ${e.message}`);
+    }
 
     // Extract reviews
     const reviewElements = await findElements(page, SELECTORS.REVIEWS, { description: 'reviews' });
@@ -341,12 +365,15 @@ export class ScraperService {
 
     for (let j = 0; j < Math.min(5, reviewElements.length); j++) {
       const reviewEl = reviewElements[j];
-      const author = await extractAttributeFromChild(
-        reviewEl,
-        SELECTORS.REVIEW_AUTHOR,
-        'aria-label',
-        { defaultValue: 'Anonymous' },
-      );
+
+      // Try to extract author - first try aria-label, then text content
+      let author = await extractAttributeFromChild(reviewEl, SELECTORS.REVIEW_AUTHOR, 'aria-label');
+      if (!author) {
+        author = await extractTextFromChild(reviewEl, SELECTORS.REVIEW_AUTHOR);
+      }
+      if (!author) {
+        author = 'Anonymous';
+      }
 
       const ratingStr = await extractAttributeFromChild(
         reviewEl,
@@ -364,25 +391,192 @@ export class ScraperService {
     // Opening hours
     let isOpen = false;
     let openingHours: string[] = [];
-    const hoursBtn = await findElement(page, SELECTORS.OPENING_HOURS);
 
-    if (hoursBtn) {
-      const hoursText = await extractAttributeFromElement(hoursBtn, 'aria-label');
-      if (hoursText.includes('Open') || hoursText.includes('Closed')) {
-        isOpen = hoursText.includes('Open');
-      }
+    try {
+      const hoursBtn = await findElement(page, SELECTORS.OPENING_HOURS);
+      if (hoursBtn) {
+        const hoursText = await extractAttributeFromElement(hoursBtn, 'aria-label');
+        if (hoursText && (hoursText.includes('Open') || hoursText.includes('Closed'))) {
+          isOpen = hoursText.includes('Open');
+        }
 
-      // Try to get detailed hours from text content
-      const hoursContent = await extractTextFromElement(hoursBtn);
-      if (hoursContent) {
-        openingHours = [hoursContent];
+        // Try to click and get detailed hours
+        try {
+          await hoursBtn.click();
+          await page.waitForTimeout(500);
+
+          // Try to extract hours table
+          const hoursTable = await page.evaluate(() => {
+            const tables = Array.from(document.querySelectorAll('table'));
+            for (const table of tables) {
+              const rows = Array.from(table.querySelectorAll('tr'));
+              if (rows.length > 0 && rows.length <= 7) {
+                return rows
+                  .map((row) => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return cells.map((cell) => cell.textContent?.trim()).join(' ');
+                  })
+                  .filter((text) => text);
+              }
+            }
+            return [];
+          });
+
+          if (hoursTable.length > 0) {
+            openingHours = hoursTable;
+          }
+        } catch (e) {
+          // If clicking fails, just get the button text
+          const hoursContent = await extractTextFromElement(hoursBtn);
+          if (hoursContent) {
+            openingHours = [hoursContent];
+          }
+        }
       }
+    } catch (e) {
+      // Silently fail if hours are not available
     }
 
-    // Place ID from URL
-    const placeId = await page.evaluate(() => {
-      return new URLSearchParams(window.location.search).get('place_id') || '';
+    // Place ID, CID, and KGMID from URL
+    const urlData = await page.evaluate(() => {
+      const url = window.location.href;
+
+      // Extract Place ID from URL - multiple patterns
+      let placeId = '';
+
+      // Try data= parameter pattern: data=!4m...!3m...!1s<PLACE_ID>
+      const dataMatch = url.match(/data=[^#]*!3m\d+!1s([A-Za-z0-9_-]+)(?:!|$|&)/);
+      if (dataMatch && dataMatch[1].length > 10) {
+        placeId = dataMatch[1];
+      }
+
+      // Try ftid parameter
+      if (!placeId) {
+        const ftidMatch = url.match(/ftid=0x[0-9a-f]+:0x[0-9a-f]+/);
+        if (ftidMatch) {
+          // Convert ftid to format that can be used
+          placeId = ftidMatch[0].replace('ftid=', '');
+        }
+      }
+
+      // Try ludocid parameter (numeric place ID)
+      if (!placeId) {
+        const ludocidMatch = url.match(/ludocid=(\d+)/);
+        if (ludocidMatch) {
+          placeId = ludocidMatch[1];
+        }
+      }
+
+      // Extract CID (Customer ID) from URL - this is the most reliable
+      let cid = '';
+      const cidMatch = url.match(/0x[0-9a-f]+:0x[0-9a-f]+/);
+      if (cidMatch) {
+        cid = cidMatch[0];
+      }
+
+      // Extract KGMID (Knowledge Graph Machine ID) from URL
+      let kgmid = '';
+      const kgmidMatch = url.match(/!1s(\/g\/[a-z0-9_]+)/i);
+      if (kgmidMatch) {
+        kgmid = kgmidMatch[1];
+      }
+
+      return { placeId, cid, kgmid, url };
     });
+
+    // Log URL for debugging
+    this.logger.debug(`URL: ${urlData.url}`);
+    this.logger.debug(
+      `Extracted - PlaceID: ${urlData.placeId}, CID: ${urlData.cid}, KGMID: ${urlData.kgmid}`,
+    );
+
+    // Extract description
+    const description = await extractText(page, SELECTORS.DESCRIPTION, {
+      description: 'business description',
+    });
+
+    // Extract price range
+    const price = await extractText(page, SELECTORS.PRICE, {
+      description: 'price range',
+    });
+
+    // Extract featured image
+    const featuredImage = await extractAttribute(page, SELECTORS.FEATURED_IMAGE, 'src', {
+      description: 'featured image',
+    });
+
+    // Extract photos (up to 10) - try multiple approaches
+    const photos: string[] = [];
+    try {
+      // Try to find photo button and click it
+      const photoButton = await page.$('button[aria-label*="Photo"]');
+      if (photoButton) {
+        // If there's a photos section, extract image URLs
+        const photoUrls = await page.evaluate(() => {
+          const imgs = Array.from(document.querySelectorAll('img[src*="googleusercontent"]'));
+          return imgs
+            .map((img) => (img as HTMLImageElement).src)
+            .filter((src) => src && src.includes('googleusercontent'))
+            .slice(0, 10);
+        });
+        photos.push(...photoUrls);
+      }
+    } catch (e) {
+      // Silently fail if photos are not available
+      this.logger.debug(`Failed to extract photos: ${e.message}`);
+    }
+
+    // Extract review URL by clicking Reviews tab
+    let reviewUrl = '';
+    try {
+      // Try to find and click the Reviews tab
+      const reviewsTabButton = await page.evaluate(() => {
+        // Find the "Reviews" text element
+        const reviewsTextDivs = Array.from(document.querySelectorAll('div.Gpq6kf.NlVald'));
+        for (const div of reviewsTextDivs) {
+          if (div.textContent?.trim() === 'Reviews') {
+            // Find the parent button
+            const button = div.closest('button');
+            return button !== null;
+          }
+        }
+        return false;
+      });
+
+      if (reviewsTabButton) {
+        // Click the Reviews tab
+        await page.evaluate(() => {
+          const reviewsTextDivs = Array.from(document.querySelectorAll('div.Gpq6kf.NlVald'));
+          for (const div of reviewsTextDivs) {
+            if (div.textContent?.trim() === 'Reviews') {
+              const button = div.closest('button') as HTMLButtonElement;
+              if (button) {
+                button.click();
+                return;
+              }
+            }
+          }
+        });
+
+        await page.waitForTimeout(1000);
+
+        // Get the URL after clicking Reviews tab
+        reviewUrl = await page.evaluate(() => window.location.href);
+
+        this.logger.debug(`Extracted reviews URL: ${reviewUrl}`);
+      } else {
+        // Fallback: construct URL from place ID
+        reviewUrl = urlData.placeId
+          ? `https://search.google.com/local/writereview?placeid=${urlData.placeId}`
+          : '';
+      }
+    } catch (e) {
+      this.logger.debug(`Failed to extract review URL: ${e.message}`);
+      // Fallback: construct URL from place ID
+      reviewUrl = urlData.placeId
+        ? `https://search.google.com/local/writereview?placeid=${urlData.placeId}`
+        : '';
+    }
 
     const placeData: ExtractedPlace = {
       category,
@@ -395,8 +589,15 @@ export class ScraperService {
       reviewsCount,
       reviews,
       openingHours,
-      placeId,
+      placeId: urlData.placeId,
       isOpen,
+      description,
+      reviewUrl,
+      photos,
+      price,
+      featuredImage,
+      cid: urlData.cid,
+      kgmid: urlData.kgmid,
     };
 
     // Try to extract email from website or page
