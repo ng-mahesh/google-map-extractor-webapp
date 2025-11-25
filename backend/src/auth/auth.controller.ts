@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, UseGuards, Request } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -6,6 +6,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from '../users/users.service';
+import { UpdateProfileDto } from '../users/dto/update-profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -51,15 +52,37 @@ export class AuthController {
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @SkipThrottle() // Skip throttling for authenticated requests
-  async getProfile(@CurrentUser() user: any) {
+  async getProfile(@CurrentUser() user: { userId: string; email: string }) {
     const userDetails = await this.usersService.findById(user.userId);
     return {
       id: userDetails._id,
       email: userDetails.email,
       name: userDetails.name,
+      phone: userDetails.phone,
+      profileImage: userDetails.profileImage,
       dailyQuota: userDetails.dailyQuota,
       usedQuotaToday: userDetails.usedQuotaToday,
       quotaResetDate: userDetails.quotaResetDate,
+    };
+  }
+
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
+  async updateProfile(
+    @CurrentUser() user: { userId: string; email: string },
+    @Body() updateProfileDto: UpdateProfileDto,
+  ) {
+    const updatedUser = await this.usersService.updateProfile(user.userId, updateProfileDto);
+    return {
+      id: updatedUser._id,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      phone: updatedUser.phone,
+      profileImage: updatedUser.profileImage,
+      dailyQuota: updatedUser.dailyQuota,
+      usedQuotaToday: updatedUser.usedQuotaToday,
+      quotaResetDate: updatedUser.quotaResetDate,
     };
   }
 }

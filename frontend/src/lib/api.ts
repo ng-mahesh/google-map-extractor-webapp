@@ -100,6 +100,12 @@ export interface LoginData {
   password: string;
 }
 
+export interface UpdateProfileData {
+  name?: string;
+  phone?: string;
+  profileImage?: string;
+}
+
 export interface StartExtractionData {
   keyword: string;
   skipDuplicates?: boolean;
@@ -158,6 +164,20 @@ export const authAPI = {
   logout: (refreshToken: string) => apiClient.post("/auth/logout", { refreshToken }),
   refresh: (refreshToken: string) => apiClient.post("/auth/refresh", { refreshToken }),
   getProfile: () => apiClient.get("/auth/profile"),
+  updateProfile: (data: UpdateProfileData) => apiClient.put("/auth/profile", data),
+};
+
+// Upload API
+export const uploadAPI = {
+  uploadProfileImage: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post("/upload/profile-image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };
 
 // Extraction API

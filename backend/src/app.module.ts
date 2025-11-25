@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { ScraperModule } from './scraper/scraper.module';
+import { UploadModule } from './upload/upload.module';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 import { winstonConfig } from './common/logging/winston.config';
 import { LoggingModule } from './common/logging/logging.module';
@@ -52,6 +53,7 @@ import { SentryFilter } from './common/logging/sentry.filter';
     UsersModule,
     ExtractionModule,
     ScraperModule,
+    UploadModule,
   ],
   providers: [
     {
