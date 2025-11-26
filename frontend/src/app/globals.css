@@ -12,6 +12,10 @@
   --google-grey-900: #202124;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Roboto', 'Arial', sans-serif;
   color: var(--google-grey-800);

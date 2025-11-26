@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authAPI } from "@/lib/api";
-import { setAuthToken, setUser } from "@/lib/auth";
+import { setAuthToken, setUser, isAuthenticated } from "@/lib/auth";
 import toast from "react-hot-toast";
 import { MapPin } from "lucide-react";
 
@@ -14,6 +14,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};

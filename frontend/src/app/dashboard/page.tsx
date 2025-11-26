@@ -45,7 +45,16 @@ export default function DashboardPage() {
       // Update localStorage with fresh profile data
       localStorage.setItem("user", JSON.stringify(response.data));
     } catch (error) {
-      console.error("Failed to load user profile:", error);
+      // Check if it's a 401 error (handled by interceptor)
+      const isAuthError =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 401;
+
+      if (!isAuthError) {
+        console.error("Failed to load user profile:", error);
+      }
     }
   };
 
@@ -53,8 +62,23 @@ export default function DashboardPage() {
     try {
       const response = await extractionAPI.getQuota();
       setQuota(response.data);
-    } catch {
-      toast.error("Failed to load quota information");
+    } catch (error) {
+      // Check if it's a 401 or 429 error (handled by interceptor)
+      const isAuthError =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 401;
+      const isRateLimitError =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 429;
+
+      // Only show error if it's not an auth or rate limit error
+      if (!isAuthError && !isRateLimitError) {
+        toast.error("Failed to load quota information");
+      }
     }
   };
 
@@ -184,6 +208,37 @@ export default function DashboardPage() {
           </>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="bg-gray-50 border-t border-gray-200 mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="text-sm text-gray-600">
+              &copy; 2025 Google Maps Extractor. All rights reserved.
+            </div>
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+              <a href="/privacy" className="text-gray-600 hover:text-primary-600">
+                Privacy Policy
+              </a>
+              <a href="/terms" className="text-gray-600 hover:text-primary-600">
+                Terms of Service
+              </a>
+              <a href="/cookie-policy" className="text-gray-600 hover:text-primary-600">
+                Cookie Policy
+              </a>
+              <a href="/gdpr" className="text-gray-600 hover:text-primary-600">
+                GDPR
+              </a>
+              <a href="/contact" className="text-gray-600 hover:text-primary-600">
+                Contact
+              </a>
+              <a href="/faq" className="text-gray-600 hover:text-primary-600">
+                FAQ
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

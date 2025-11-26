@@ -26,6 +26,32 @@ export default function LandingPage() {
               <MapPin className="w-8 h-8 text-primary-600" />
               <span className="text-xl font-bold text-gray-900">Google Maps Extractor</span>
             </div>
+            <div className="hidden md:flex items-center space-x-6">
+              <a href="#features" className="text-gray-700 hover:text-gray-900 font-medium">
+                Features
+              </a>
+              <a href="#pricing" className="text-gray-700 hover:text-gray-900 font-medium">
+                Pricing
+              </a>
+              <button
+                onClick={() => router.push("/about")}
+                className="text-gray-700 hover:text-gray-900 font-medium"
+              >
+                About
+              </button>
+              <button
+                onClick={() => router.push("/faq")}
+                className="text-gray-700 hover:text-gray-900 font-medium"
+              >
+                FAQ
+              </button>
+              <button
+                onClick={() => router.push("/contact")}
+                className="text-gray-700 hover:text-gray-900 font-medium"
+              >
+                Contact
+              </button>
+            </div>
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.push("/login")}
@@ -76,7 +102,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-white">
+      <section id="features" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Powerful Features</h2>
@@ -297,7 +323,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 bg-gray-50">
+      <section id="pricing" className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
@@ -446,23 +472,18 @@ export default function LandingPage() {
               <h4 className="text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="#features" className="hover:text-white">
                     Features
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="#pricing" className="hover:text-white">
                     Pricing
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
-                    API
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    Documentation
+                  <a href="/faq" className="hover:text-white">
+                    FAQ
                   </a>
                 </li>
               </ul>
@@ -472,22 +493,12 @@ export default function LandingPage() {
               <h4 className="text-white font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/about" className="hover:text-white">
                     About
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    Careers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/contact" className="hover:text-white">
                     Contact
                   </a>
                 </li>
@@ -498,22 +509,22 @@ export default function LandingPage() {
               <h4 className="text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/privacy" className="hover:text-white">
                     Privacy Policy
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/terms" className="hover:text-white">
                     Terms of Service
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/cookie-policy" className="hover:text-white">
                     Cookie Policy
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
+                  <a href="/gdpr" className="hover:text-white">
                     GDPR
                   </a>
                 </li>

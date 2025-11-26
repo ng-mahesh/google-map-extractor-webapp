@@ -10,6 +10,20 @@ const apiClient = axios.create({
   },
 });
 
+// Flag to prevent multiple simultaneous redirects to login
+let isRedirectingToLogin = false;
+
+// Reset the redirect flag when the page loads
+if (typeof window !== "undefined") {
+  // Reset on page load
+  isRedirectingToLogin = false;
+
+  // Also reset when the user navigates back to the page
+  window.addEventListener("pageshow", () => {
+    isRedirectingToLogin = false;
+  });
+}
+
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
@@ -31,6 +45,19 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Handle 429 Too Many Requests
+    if (error.response?.status === 429) {
+      const errorMessage =
+        error.response?.data?.message || "Too many requests. Please try again later.";
+
+      // Only show toast if not redirecting and not on auth endpoints
+      if (!isRedirectingToLogin && !originalRequest.url?.includes("/auth/")) {
+        toast.error(errorMessage);
+      }
+
+      return Promise.reject(error);
+    }
 
     // If 401 and not already retried
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -58,13 +85,25 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return apiClient(originalRequest);
         } catch (refreshError) {
+          // Prevent multiple redirects
+          if (isRedirectingToLogin) {
+            return Promise.reject(refreshError);
+          }
+
+          isRedirectingToLogin = true;
+
           // Refresh failed, logout user
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
           localStorage.removeItem("user");
 
           toast.error("Session expired. Please login again.");
-          window.location.href = "/login";
+
+          // Use setTimeout to ensure only one redirect happens
+          setTimeout(() => {
+            window.location.href = "/login";
+          }, 100);
+
           return Promise.reject(refreshError);
         }
       }
@@ -74,7 +113,9 @@ apiClient.interceptors.response.use(
     if (
       typeof window !== "undefined" &&
       !originalRequest.url?.includes("/auth/") &&
-      !originalRequest._skipErrorToast
+      !originalRequest._skipErrorToast &&
+      !isRedirectingToLogin &&
+      error.response?.status !== 429
     ) {
       const errorMessage =
         error.response?.data?.message ||
