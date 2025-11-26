@@ -38,8 +38,24 @@ export default function ExtractionHistory({ onViewResults }: ExtractionHistoryPr
       if (isRefresh) {
         toast.success("History refreshed");
       }
-    } catch {
-      toast.error("Failed to load extraction history");
+    } catch (error: unknown) {
+      // Check if it's a 401 (handled by interceptor) or 429 error
+      const isAuthError =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 401;
+      const isRateLimitError =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 429;
+
+      // Only show error toast if it's not an auth error (interceptor handles that)
+      // and not a rate limit error (already handled)
+      if (!isAuthError && !isRateLimitError) {
+        toast.error("Failed to load extraction history");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
