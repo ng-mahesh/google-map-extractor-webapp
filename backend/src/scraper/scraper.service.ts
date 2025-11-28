@@ -272,7 +272,8 @@ export class ScraperService {
         }
       }, feedSelector);
 
-      await page.waitForTimeout(2000);
+      // **PERFORMANCE**: Reduced scroll wait time from 2000ms to 1000ms
+      await page.waitForTimeout(1000);
 
       const resultCount = await page.evaluate(() => {
         return document.querySelectorAll('div[role="article"]').length;
@@ -389,10 +390,12 @@ export class ScraperService {
       async () => {
         await element.click();
       },
-      { maxAttempts: 3, initialDelay: 1000 },
+      { maxAttempts: 3, initialDelay: 500 },
     );
 
-    await page.waitForTimeout(2000);
+    // **PERFORMANCE**: Reduced wait time from 2000ms to 1000ms
+    // Wait for content to load after clicking
+    await page.waitForTimeout(1000);
 
     if ((index + 1) % 5 === 0 || index === limit - 1) {
       onLog(`Extracted ${index + 1}/${limit} places...`);
@@ -504,7 +507,8 @@ export class ScraperService {
         // Try to click and get detailed hours
         try {
           await hoursBtn.click();
-          await page.waitForTimeout(500);
+          // **PERFORMANCE**: Reduced wait time from 500ms to 300ms
+          await page.waitForTimeout(300);
 
           // Try to extract hours table
           const hoursTable = await page.evaluate(() => {
@@ -659,7 +663,8 @@ export class ScraperService {
           }
         });
 
-        await page.waitForTimeout(1000);
+        // **PERFORMANCE**: Reduced wait time from 1000ms to 500ms
+        await page.waitForTimeout(500);
 
         // Get the URL after clicking Reviews tab
         reviewUrl = await page.evaluate(() => window.location.href);
