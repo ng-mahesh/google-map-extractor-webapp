@@ -116,9 +116,21 @@ export class ExtractionService {
         });
       };
 
-      // Create checkpoint callback
+      // Create checkpoint callback with incremental database save
       const saveCheckpointCallback = async (checkpointData: CheckpointData) => {
         await this.saveCheckpoint(checkpointData);
+
+        // **INCREMENTAL SAVE**: Save results to database at checkpoints
+        // This prevents data loss if extraction fails
+        await this.extractionModel.findByIdAndUpdate(extractionId, {
+          results: checkpointData.places,
+          totalResults: checkpointData.places.length,
+          duplicatesSkipped: checkpointData.duplicatesSkipped || 0,
+          withoutPhoneSkipped: checkpointData.withoutPhoneSkipped || 0,
+          withoutWebsiteSkipped: checkpointData.withoutWebsiteSkipped || 0,
+          alreadyExistsSkipped: checkpointData.alreadyExistsSkipped || 0,
+          failedPlaces: checkpointData.failedPlaces || 0,
+        });
 
         // Emit progress update via WebSocket
         const percentage = Math.round((checkpointData.lastProcessedIndex / dto.maxResults) * 100);
@@ -127,7 +139,7 @@ export class ExtractionService {
           currentIndex: checkpointData.lastProcessedIndex,
           totalResults: dto.maxResults,
           percentage,
-          message: `Processed ${checkpointData.lastProcessedIndex} of ${dto.maxResults} results`,
+          message: `Processed ${checkpointData.lastProcessedIndex} of ${dto.maxResults} results (saved to database)`,
         });
       };
 
@@ -182,12 +194,24 @@ export class ExtractionService {
 
       this.logger.log(`Extraction ${extractionId} completed successfully`);
     } catch (error) {
+      // Get current extraction to check if any results were saved
+      const failedExtraction = await this.extractionModel.findById(extractionId);
+      const hadNoResults = !failedExtraction?.results || failedExtraction.results.length === 0;
+
       await this.extractionModel.findByIdAndUpdate(extractionId, {
         status: 'failed',
         errorMessage: error.message,
         completedAt: new Date(),
         $push: { logs: `${new Date().toISOString()}: ERROR - ${error.message}` },
       });
+
+      // **QUOTA REFUND**: If extraction failed with no results, refund the quota
+      if (hadNoResults && failedExtraction) {
+        await this.usersService.refundQuota(failedExtraction.userId.toString());
+        this.logger.log(
+          `Refunded quota for user ${failedExtraction.userId} due to failed extraction with no results`,
+        );
+      }
 
       // Emit error via WebSocket
       this.extractionGateway.emitError(extractionId, {
