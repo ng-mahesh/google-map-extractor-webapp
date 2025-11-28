@@ -76,6 +76,24 @@ export class UsersService {
     return Math.max(0, user.dailyQuota - user.usedQuotaToday);
   }
 
+  /**
+   * Refund quota when extraction fails with no results
+   */
+  async refundQuota(userId: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Only refund if user has used quota
+    if (user.usedQuotaToday > 0) {
+      user.usedQuotaToday -= 1;
+      return user.save();
+    }
+
+    return user;
+  }
+
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto): Promise<UserDocument> {
     const user = await this.userModel.findById(userId);
     if (!user) {
